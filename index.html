@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>HEARTVERSE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -262,6 +264,8 @@ h2.sec small, h1.sec small { font-family:var(--sans); font-size:12.5px; color:va
 .tools-row button.on { color:var(--accent); }
 .tools-row .sw { font-variant-numeric:tabular-nums; padding:0 2px; }
 .tools-row .rcpt { margin-left:auto; font-size:11.5px; font-variant-numeric:tabular-nums; padding:0 4px; }
+.tools-row .lore-used { margin-left:auto; font-size:11.5px; color:var(--sys); padding:0 4px; max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tools-row .lore-used + .rcpt { margin-left:0; }
 details.stat { border:1px solid var(--line); border-radius:12px; background:var(--surface2); font-size:12.5px; }
 details.stat summary { cursor:pointer; padding:7px 12px; color:var(--muted); font-weight:600; list-style:none; display:flex; align-items:center; gap:6px; }
 details.stat summary::-webkit-details-marker { display:none; }
@@ -294,6 +298,7 @@ details.stat[open] summary::after { content:"▴"; }
 .sug-panel .head { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
 .sug-panel button.s { border:1px solid var(--line); background:var(--bg); border-radius:12px; padding:8px 12px; font-size:13.5px; text-align:left; }
 .sug-panel button.s:hover { border-color:var(--accent); }
+@media (max-width:560px) { .sug-panel { gap:4px; } .sug-panel button.s { padding:6px 11px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } }
 .inputrow { display:flex; gap:8px; align-items:flex-end; background:var(--bg); border:1px solid var(--line); border-radius:16px; padding:6px 6px 6px 14px; }
 .inputrow:focus-within { border-color:var(--accent); }
 .inputrow textarea { flex:1; min-width:0; border:0; background:none; outline:none; resize:none; max-height:160px; min-height:24px; padding:7px 0; line-height:1.55; }
@@ -498,6 +503,13 @@ const ORIGINALS = [
   speech: "존댓말과 반말을 섞는 능청스러운 말투. 핵심은 짧게 찌른다.\n\"의뢰비는 선불입니다. …농담이에요. 반은.\"\n\"거짓말할 땐 왼쪽 눈썹이 먼저 움직이네요. 다시 해 볼래요?\"",
   secret: "3년 전 파트너를 죽인 진범이 아직 살아 있고, 경찰 내부에 공범이 있다고 믿는다.",
   fields: ["장소", "시간", "신뢰도", "사건 단서", "속마음"], gauge: "신뢰도",
+  lore: [
+    { keys: ["경위", "고양이"], text: "사무소에 사는 회색 고양이. 3년 전 비 오는 날 도윤이 주워 왔다. 낯선 사람 무릎엔 절대 오르지 않는데, 오르면 도윤도 그 사람을 조금 믿게 된다." },
+    { keys: ["순댓국", "사장님", "1층"], text: "1층 24시간 순댓국집. 60대 사장님은 도윤의 외상을 봐 주고, 동네 소문을 누구보다 먼저 듣는다." },
+    { keys: ["파트너", "한정우", "3년 전"], text: "도윤의 전 파트너 한정우 경위. 3년 전 을지로 창고 잠복 중 숨졌다. 공식 결론은 사고지만 도윤은 믿지 않는다. 이 이름이 나오면 도윤은 말수가 줄고 박하사탕을 깨문다." },
+    { keys: ["강력계", "서울청", "경찰"], text: "도윤의 옛 직장. 아직 연락하는 후배 민 형사가 비공식으로 조회를 해 준다. 다만 경찰 내부를 완전히 믿지는 않는다." },
+    { keys: ["박하사탕", "담배"], text: "담배를 끊으려고 박하사탕을 깨문다. 초조할수록 더 자주, 더 세게 깨문다." }
+  ],
   openings: [
     { title: "비 오는 밤의 의뢰인", status: { "장소": "흑우 탐정사무소", "시간": "새벽 1:07", "신뢰도": 10, "사건 단서": "없음", "속마음": "이 시간에, 우산도 없이. 급한 사람이군." },
       text: "*새벽 1시, 을지로. 빗줄기가 간판의 네온을 두드린다. 사무소 문이 세 번 울리자 서도윤은 읽던 서류를 덮었다.*\n\n\"이 시간에 오는 의뢰는 대개 둘 중 하나예요. 사람이 사라졌거나, 누굴 사라지게 하고 싶거나.\"\n\n*그는 박하사탕을 깨물며 젖은 당신을 위아래로 훑었다. 책상 위의 회색 고양이가 꼬리를 한 번 친다.*\n\n\"앉으세요. 수건은 저쪽. …그래서, 어느 쪽이에요?\"" },
@@ -921,6 +933,7 @@ function normalizeChar(c) {
   if (!c.gauge) c.gauge = c.fields[0];
   if (!Array.isArray(c.cast) || !c.cast.length) c.cast = [{ code: "c", name: c.name, look: "" }];
   if (!c.images || typeof c.images !== "object") c.images = {};
+  if (!Array.isArray(c.lore)) c.lore = [];
   return c;
 }
 function allChars() { return [...S.mine, ...ORIGINALS, ...S.community.filter((c) => !S.mine.some((m) => m.id === c.id))]; }
@@ -1036,7 +1049,22 @@ function errCopy(e) {
 
 /* ---------------------------------------------------------------- 프롬프트 */
 function speakerName(r) { return r.char.world_mode ? "내레이터" : r.char.name; }
-function rulesPrompt(r) {
+/* 키워드북: 한 줄에 "키워드1, 키워드2 | 설명". 최근 대화에 키워드가 나온 항목만 프롬프트에 넣는다 */
+function parseLore(text) {
+  const out = [];
+  String(text).split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 40).forEach((l) => {
+    const k = l.indexOf("|"); if (k < 0) return;
+    const keys = l.slice(0, k).split(",").map((x) => x.trim().slice(0, 20)).filter(Boolean).slice(0, 6), body = l.slice(k + 1).trim().slice(0, 400);
+    if (keys.length && body) out.push({ keys, text: body });
+  });
+  return out;
+}
+function loreText(lore) { return (lore || []).map((e) => e.keys.join(", ") + " | " + e.text).join("\n"); }
+function matchLore(lore, texts) {
+  const hay = texts.join("\n").toLowerCase();
+  return (lore || []).filter((e) => e.keys.some((k) => hay.includes(k.toLowerCase()))).slice(0, 6);
+}
+function rulesPrompt(r, lore = []) {
   const c = r.char, p = r.persona, len = LEN[r.set.len] || LEN.mid;
   const fields = c.fields.map((f) => `"${f}":${f === c.gauge && typeof r.status?.[f] === "number" ? "0~100 정수" : '"짧은 값"'}`).join(",");
   const seen = new Set(); r.msgs.forEach((m) => imgTags(curText(m)).forEach((t) => seen.add(t.code)));
@@ -1061,6 +1089,7 @@ ${p.desc || "(설명 없음)"}
 ${r.userNote ? "\n[유저노트 — 유저가 직접 적은 설정. 캐릭터 설정보다 우선한다. 단, 아래 연기 규칙의 안전 항목은 넘지 않는다]\n" + r.userNote + "\n" : ""}
 [장기 기억 — 지금까지의 줄거리. 모순되지 않게 쓰고, 물건·별명·약속·떡밥을 자연스럽게 다시 꺼내 쓴다]
 ${r.memory || "(아직 없음)"}
+${lore.length ? "\n[키워드북 — 이번 장면에 나온 키워드의 설정. 사실로 삼아 자연스럽게 반영하되 설명하듯 늘어놓지 않는다]\n" + lore.map((e) => `- ${e.keys[0]}: ${e.text}`).join("\n") + "\n" : ""}
 
 [연기 규칙]
 - 유저 캐릭터(${p.name})의 대사·행동·속마음을 대신 쓰거나 결정하지 않는다. 유저가 한 행동의 결과와 다른 인물·세계의 반응만 쓴다.
@@ -1090,7 +1119,9 @@ function curText(m) { return m.role === "ai" ? (m.alts[m.idx] || {}).text || "" 
 function buildInput(r, uptoIdx, statusBefore, direction) {
   const hist = r.msgs.slice(0, uptoIdx).filter((m) => curText(m));
   const recent = hist.slice(-(r.set.mem * 2 + 1));
-  const out = [{ role: "user", content: rulesPrompt(r) }];
+  const lore = matchLore(getChar(r.char.id)?.lore || r.char.lore, recent.slice(-3).map((m) => (m.role === "ai" ? curText(m) : m.text) || ""));
+  const out = [{ role: "user", content: rulesPrompt(r, lore) }];
+  out.lore = lore.map((e) => e.keys[0]);
   recent.forEach((m, i) => {
     const last = i === recent.length - 1;
     if (m.role === "ai") { out.push({ role: "assistant", content: curText(m) }); return; }
@@ -1456,6 +1487,7 @@ function renderLog(scroll) {
         <button data-act="bm" data-i="${i}" class="${bm ? "on" : ""}" aria-pressed="${bm}">${bm ? "★" : "☆"} 북마크</button>
         <button data-act="editai" data-i="${i}">수정</button><button data-act="copy" data-i="${i}">복사</button>
         ${i > 0 ? `<button data-act="del" data-i="${i}">삭제</button>` : ""}
+        ${alt.lore?.length ? `<span class="lore-used" title="이 응답에 반영된 키워드북">📖 ${esc(alt.lore.join(" · "))}</span>` : ""}
         ${alt.cost ? `<span class="rcpt" title="이 응답에 쓴 비용">${esc(alt.cost)}</span>` : ""}
       </div>`;
     }
@@ -1573,7 +1605,7 @@ async function generate(target, q, direction = "", isEdit = false) {
     const text = await llm(input, { tier: MODELS[model].tier, signal: ctl.signal, onText: ({ text }) => show(text), maxTokens: { short: 1200, mid: 2000, long: 3200 }[r.set.len] });
     show(text);
     const parsed = parseState(text, c, msg.statusBefore);
-    Object.assign(msg.alts[altIdx], parsed, { text: msg.alts[altIdx].text || "(빈 응답)", cost: qShort(q) });
+    Object.assign(msg.alts[altIdx], parsed, { text: msg.alts[altIdx].text || "(빈 응답)", cost: qShort(q), lore: input.lore });
     r.status = parsed.status;
     if (!target && !isEdit) { r.turn = (r.turn || 0) + 1; r.sinceMem = (r.sinceMem || 0) + 1; }
   } catch (e) {
@@ -1588,7 +1620,11 @@ async function generate(target, q, direction = "", isEdit = false) {
   } finally {
     gen = null;
     saveRoom(r);
-    if (room === r && $("#logInner")) { renderLog(true); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true }); }
+    if (room === r && $("#logInner")) {
+      renderLog(true); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true });
+      // 응답과 함께 온 추천 답변을 바로 펼침 (추가 호출 없음)
+      if (r.set.sugAuto !== false && msg === lastAi(r) && msg.alts[msg.idx]?.suggestions?.length && $("#sugPanel")?.hidden) { toggleSug(); const log = $("#log"); if (log) log.scrollTop = log.scrollHeight; }
+    }
     maybeSummarize(r);
   }
 }
@@ -1903,13 +1939,14 @@ function openRoomDrawer(view = "main") {
         <div class="setcard"><h4>출력량</h4><p class="d">캐릭터가 한 번에 얼마나 길게 답할지 정해요.</p>
           <div class="seg">${Object.entries(LEN).map(([k, l]) => `<button data-len="${k}" class="${s.len === k ? "on" : ""}">${l.name}<small>${l.chars}</small></button>`).join("")}</div><div class="res">${LEN[s.len].desc}</div></div>
         <div class="setcard"><div class="toggle"><div><h4>리롤 지침</h4><p class="d" style="margin:4px 0 0">다시 쓰기를 누르면 방향을 적는 창을 띄워요.</p></div><input type="checkbox" id="rr" ${s.rerollAsk ? "checked" : ""}></div></div>
+        <div class="setcard"><div class="toggle"><div><h4>추천 답변 바로 보기</h4><p class="d" style="margin:4px 0 0">응답이 끝나면 이어갈 행동·대사 3개를 입력창 위에 바로 펼쳐요. 응답과 함께 만들어져서 비용이 더 들지 않아요.</p></div><input type="checkbox" id="sa" ${s.sugAuto !== false ? "checked" : ""}></div></div>
         <div class="setcard"><h4>예상 비용</h4><table class="tbl"><tbody>${Object.keys(MODELS).map((k) => { const qq = quote({ ...s, model: k }); return `<tr><td>${MODELS[k].name}${k === s.model ? ' <span class="pill">사용 중</span>' : ""}</td><td class="num">${qq.type === "free" ? "무료 (" + freeLeft() + "턴 남음)" : qq.type === "plus" ? "PLUS 무제한" : "♥" + qq.n + " / 턴"}</td></tr>`; }).join("")}</tbody></table></div>
         <button class="btn pri block" id="oSave" style="margin-top:12px">저장 · 지금 모델 턴당 ${qShort(q2)}</button>`;
       $("#mM", body).onclick = () => { s.mem = Math.max(5, s.mem - 5); paint(); };
       $("#mP", body).onclick = () => { if (s.mem + 5 > maxMem) return plusSheet("mem"); s.mem += 5; paint(); };
       $$("[data-len]", body).forEach((b) => b.onclick = () => { s.len = b.dataset.len; paint(); });
       $("#rr", body).onchange = (e) => { s.rerollAsk = e.target.checked; };
-      $("#oSave", body).onclick = () => { r.set = { ...r.set, ...s, rerollAsk: $("#rr", body).checked }; saveRoom(r); updateComposer(); toast("출력 설정을 저장했어요"); openRoomDrawer("main"); };
+      $("#oSave", body).onclick = () => { r.set = { ...r.set, ...s, rerollAsk: $("#rr", body).checked, sugAuto: $("#sa", body).checked }; saveRoom(r); updateComposer(); toast("출력 설정을 저장했어요"); openRoomDrawer("main"); };
     };
     paint();
   }
@@ -2035,7 +2072,7 @@ function viewChats() {
 let draft = null;
 function blankDraft() {
   return { id: uid("u"), name: "", title: "", glyph: "", cat: "로맨스", pal: 1, motif: "glow", oneLiner: "", tags: [], desc: "", persona: "", world: "", speech: "", secret: "",
-    fields: ["장소", "호감도", "속마음"], gauge: "호감도", cast: [], images: {}, world_mode: false, openings: [{ title: "첫 만남", text: "", directive: "", status: {} }], img: "", publish: false };
+    fields: ["장소", "호감도", "속마음"], gauge: "호감도", cast: [], lore: [], images: {}, world_mode: false, openings: [{ title: "첫 만남", text: "", directive: "", status: {} }], img: "", publish: false };
 }
 function viewStudio(id) {
   const v = $("#view");
@@ -2084,6 +2121,11 @@ function viewStudio(id) {
         <div class="field"><label for="f-world">세계관·규칙</label><textarea id="f-world" maxlength="2500">${esc(d.world)}</textarea></div>
         <div class="field"><label for="f-speech">말투와 대사 예시</label><textarea id="f-speech" maxlength="800">${esc(d.speech)}</textarea></div>
         <div class="field"><label for="f-secret">숨겨진 설정 (가까워지면 드러남)</label><input id="f-secret" maxlength="200" value="${esc(d.secret)}"></div>
+      </div>
+      <div class="box">
+        <h3>키워드북</h3>
+        <p class="note">대화에 키워드가 나올 때만 AI에게 알려 주는 설정이에요. 장소·인물·물건·사건을 많이 적어도 평소 프롬프트는 길어지지 않아요. 한 줄에 하나씩 <b>키워드1, 키워드2 | 설명</b> (최대 40줄).</p>
+        <div class="field"><label for="f-lore" class="sr">키워드북</label><textarea id="f-lore" maxlength="12000" style="min-height:110px" placeholder="순댓국집, 사장님 | 사무소 1층 24시간 순댓국집. 사장님은 외상을 봐 준다.">${esc(loreText(d.lore))}</textarea></div>
       </div>
       <div class="box">
         <h3>이미지 출연진</h3>
@@ -2156,6 +2198,7 @@ function collect() {
   d.fields = val("#f-fields").split(",").map((t) => t.trim()).filter(Boolean).slice(0, 16);
   d.gauge = val("#f-gauge") || d.fields[0] || "호감도";
   d.cast = parseCast(val("#f-cast"), d.name);
+  d.lore = parseLore(val("#f-lore"));
   d.openings = d.openings.map((o, i) => ({ ...o, title: val("#o-t" + i), text: $("#o-x" + i)?.value.trim() ?? o.text, directive: val("#o-d" + i) }));
   d.publish = !!$("#f-pub")?.checked;
 }
@@ -2222,7 +2265,8 @@ function cleanChar(c) {
     tags: Array.isArray(c.tags) ? c.tags.map((t) => s(t, 12)).slice(0, 5) : [], glyph: s(c.glyph, 1), pal: PALETTES[c.pal] ? c.pal : 0, motif: MOTIFS[c.motif] ? c.motif : "glow",
     img: validRef(c.img) && !String(c.img).startsWith("kv:") ? c.img : "", images: pubImages(c.images), world_mode: !!c.world_mode,
     desc: s(c.desc, 600), persona: s(c.persona, 3000), world: s(c.world, 2500), speech: s(c.speech, 800), secret: s(c.secret, 200),
-    fields: fields.includes(gauge) ? fields : [gauge, ...fields], gauge, cast: cast.length ? cast : [{ code: "c", name: s(c.name, 16), look: "" }], creator: s(c.creator, 20) || "익명 크리에이터",
+    fields: fields.includes(gauge) ? fields : [gauge, ...fields], gauge, cast: cast.length ? cast : [{ code: "c", name: s(c.name, 16), look: "" }],
+    lore: Array.isArray(c.lore) ? c.lore.slice(0, 40).map((e) => ({ keys: Array.isArray(e?.keys) ? e.keys.map((k) => s(k, 20)).filter(Boolean).slice(0, 6) : [], text: s(e?.text, 400) })).filter((e) => e.keys.length && e.text) : [], creator: s(c.creator, 20) || "익명 크리에이터",
     openings: c.openings.slice(0, 6).map((o) => ({ title: s(o?.title, 30), text: s(o?.text, 3000), directive: s(o?.directive, 300), status: (o && typeof o.status === "object" && o.status) ? o.status : {} })).filter((o) => o.text) };
 }
 function watchCommunity() {

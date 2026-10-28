@@ -1132,6 +1132,15 @@ function shrink(file, max, q, asBlob) {
 }
 
 /* ---------------------------------------------------------------- AI 이미지 생성: 내 Gemini API 키로 직접 호출 */
+/* 그림체 프리셋: 고르면 모든 AI 이미지 프롬프트의 맨 앞(그림체 자리)에 들어감 */
+const IMG_STYLES = {
+  none: ["기본 (프롬프트 그대로)", ""],
+  oriental: ["동양 판타지 일러스트", "2D 애니메이션 일러스트, 가늘고 깔끔한 선화, 셀 채색, 흰색·진홍색·금색만 쓰는 제한된 색, 새까만 단색 배경, 붉은 먹으로 그린 듯한 소용돌이 문양과 금빛 나비 장식, 정면 대칭 구도, 섬세한 동양풍 캐릭터 일러스트"],
+  novel: ["웹소설 표지 세미리얼", "세미리얼 애니풍 디지털 페인팅, 한국 웹소설 표지 일러스트, 부드러운 채색과 윤기 있는 머리카락, 영화 같은 조명, 강한 명암 대비, 배경은 흐릿하게 처리한 장면 풍경, 고해상도"],
+  custom: ["직접 입력", ""]
+};
+function imgStyleText() { const k = S.settings.imgStyle; return (k === "custom" ? S.settings.imgStyleCustom || "" : IMG_STYLES[k]?.[1] || "").trim(); }
+function styled(fallback) { return imgStyleText() || fallback; }
 const IMG_MODELS = [["gemini-2.5-flash-image", "Gemini 2.5 Flash Image (빠름)"], ["gemini-3-pro-image-preview", "Gemini 3 Pro Image (고품질)"]];
 async function refToPart(ref) {
   try {
@@ -1186,7 +1195,7 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
   ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
     <div class="field" style="margin-top:0"><label for="gp">프롬프트</label><textarea id="gp" maxlength="2000" style="min-height:110px">${esc(prompt)}</textarea></div>
     ${refs.length ? `<div class="toggle" style="margin-top:10px"><label for="gref">등록된 이미지를 참고해서 같은 인물로 그리기</label><input type="checkbox" id="gref" checked></div>` : ""}
-    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
+    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(IMG_STYLES[S.settings.imgStyle]?.[0] || IMG_STYLES.none[0])}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
     <div class="cta-row"><button class="btn ghost" data-x>닫기</button><span class="spacer"></span><button class="btn" id="gmk">생성</button><button class="btn pri" id="guse" disabled>이 이미지 쓰기</button></div></div>`;
   document.body.append(ov);
   let blob = null, url = "", ctl = null;
@@ -1216,7 +1225,7 @@ const S = {
   wallet: { hearts: 0, freeDay: today(), freeUsed: 0, pro: null, history: [], ledger: [], ack: {} },
   personas: [{ id: "p1", name: "유저", memo: "", desc: "", img: "", def: true }],
   profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {},
-  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
+  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", imgStyle: "none", imgStyleCustom: "", memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
   engine: "pending", cat: "전체", q: ""
 };
 let SAMPLE = null, samplePromise = null, DB = null, DOWNLOADS = null;
@@ -2347,7 +2356,7 @@ function openImageSlots(c, code) {
   const store = () => mine ? (mine.images ||= {}) : (S.imgpacks[c.id] ||= {});
   const persist = () => { if (mine) { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); } else KV.set("imgpacks", S.imgpacks); };
   const put = async (file, sit, code = cur) => { const ref = await IMG.put(file); const m = store()[code] || {}; IMG.drop(m[sit]); m[sit] = ref; store()[code] = m; };
-  const prompt = (cast, i) => `웹툰풍 캐릭터 일러스트, ${cast.look || cast.name}, ${SIT[i]} 표정과 자세, 상반신, 세로 4:5 구도, 「${c.title}」 분위기의 배경`;
+  const prompt = (cast, i) => `${styled("웹툰풍 캐릭터 일러스트")}, ${cast.look || cast.name}, ${SIT[i]} 표정과 자세, 상반신, 세로 4:5 구도, 「${c.title}」 분위기의 배경`;
   const refsFor = (code, i) => { const s = imagesOf(c)[code] || {}; return [0, 1].filter((k) => k !== i && validRef(s[k])).slice(0, 1).map((k) => s[k]); };
   let live = null, bulk = null;
   const paint = () => {
@@ -2511,7 +2520,7 @@ function viewStudio(id) {
   $("#imgAi").onclick = () => {
     collect(); const lead = d.cast?.[0] || {}, s = (d.images || {})[lead.code] || {};
     genImageSheet({ title: "AI로 표지 만들기", aspect: "3:4", refs: [s[0], s[1]].filter(validRef).slice(0, 1),
-      prompt: `웹소설 표지풍 일러스트${d.title ? `, 작품 「${d.title}」` : ""}${d.oneLiner ? `, ${d.oneLiner}` : ""}, 주인공 ${lead.look || d.name || "캐릭터"}, 세로 3:4 구도, 인물 중심, 글자나 로고 없이`,
+      prompt: `${styled("웹소설 표지풍 일러스트")}${d.title ? `, 작품 「${d.title}」` : ""}${d.oneLiner ? `, ${d.oneLiner}` : ""}, 주인공 ${lead.look || d.name || "캐릭터"}, 세로 3:4 구도, 인물 중심, 글자나 로고 없이`,
       onUse: async (blob) => { collect(); d.img = await IMG.put(blob); viewStudio(id); toast("표지 이미지를 넣었어요"); } });
   };
   const sl = $("#slots"); if (sl) sl.onclick = () => { const m = S.mine.find((x) => x.id === d.id); if (m) openImageSlots(m); };
@@ -2747,6 +2756,8 @@ function viewMe() {
         <div class="field"><label for="gkey">Gemini API 키 (AI 이미지 생성 · 파일로 열었을 때)</label><input id="gkey" type="password" autocomplete="off" placeholder="AIza..." value="${esc(S.settings.geminiKey)}"></div>
         <div class="field"><label for="gmodel">이미지 모델</label><select id="gmodel">${[...IMG_MODELS, ...(IMG_MODELS.some((m) => m[0] === S.settings.imgModel) ? [] : [[S.settings.imgModel, S.settings.imgModel]])].map(([k, l]) => `<option value="${esc(k)}" ${S.settings.imgModel === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
       </div>
+      <div class="field"><label for="gstyle">그림체 프리셋</label><select id="gstyle">${Object.entries(IMG_STYLES).map(([k, [l]]) => `<option value="${k}" ${(S.settings.imgStyle || "none") === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+      <div class="field" id="gstyleBox" ${(S.settings.imgStyle || "none") === "none" ? "hidden" : ""}><label for="gstyleTxt">그림체 문구 — 슬롯·표지·페르소나의 AI 프롬프트 맨 앞에 들어가요. 고치면 '직접 입력'으로 바뀌어요.</label><textarea id="gstyleTxt" maxlength="600" style="min-height:76px">${esc(imgStyleText())}</textarea></div>
       <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="gtest">이미지 생성 테스트</button><span class="note" id="gtestMsg">키는 Google AI Studio에서 받을 수 있어요. 이 브라우저에만 저장돼요.</span></div>
       <p class="note" style="margin-top:6px">현재 AI 연결: <b>${engineName()}</b>. claude.ai에서 열면 내 Claude 계정으로 대화해요. 키는 이 브라우저에만 저장돼요.</p>
       <p class="note">저장 위치: ${KV.dbOk ? "내 claude.ai 계정 (기기 간 동기화)" : "이 브라우저"} · 이미지: ${IMG.assets ? "아티팩트 저장소" : "압축 후 내 저장 공간"}</p>
@@ -2758,14 +2769,18 @@ function viewMe() {
   $$("[data-def]", v).forEach((b) => b.onclick = () => { S.personas.forEach((p) => p.def = p.id === b.dataset.def); KV.set("personas", S.personas); viewMe(); });
   $$("[data-pedit]", v).forEach((b) => b.onclick = () => personaSheet(S.personas.find((p) => p.id === b.dataset.pedit), viewMe));
   const pa = $("#padd"); if (pa) pa.onclick = () => personaSheet(null, viewMe);
+  const gs = $("#gstyle"), gt = $("#gstyleTxt");
+  gs.onchange = () => { const k = gs.value; $("#gstyleBox").hidden = k === "none"; gt.value = k === "custom" ? S.settings.imgStyleCustom || gt.value : IMG_STYLES[k][1]; };
+  gt.oninput = () => { if (gs.value !== "custom") gs.value = "custom"; };
+  const saveStyle = () => { S.settings.imgStyle = gs.value; if (gs.value === "custom") S.settings.imgStyleCustom = gt.value.trim(); };
   $("#setSave").onclick = () => {
     S.settings.fs = +$("#fs").value; S.settings.theme = $("#th").value; S.settings.apiKey = $("#key").value.trim();
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value;
+    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle();
     saveSettings(); applySettings(); if (S.engine === "none" && S.settings.apiKey) S.engine = "byok"; toast("설정을 저장했어요"); viewMe();
   };
   $("#gtest").onclick = () => {
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveSettings();
-    genImageSheet({ title: "이미지 생성 테스트", aspect: "1:1", prompt: "웹툰풍 일러스트, 창가에서 커피를 마시는 고양이, 따뜻한 오후 햇살",
+    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle(); saveSettings();
+    genImageSheet({ title: "이미지 생성 테스트", aspect: "1:1", prompt: `${styled("웹툰풍 일러스트")}, 창가에서 커피를 마시는 고양이, 따뜻한 오후 햇살`,
       onUse: async () => toast("테스트 이미지는 저장하지 않아요. 키가 잘 작동해요!") });
   };
   $("#reset").onclick = () => confirmSheet("모든 데이터를 지울까요?", "대화방, 만든 캐릭터, 하트, 페르소나, 이미지 연결이 모두 지워져요. 되돌릴 수 없어요.", "전부 삭제", () => {
@@ -2788,7 +2803,7 @@ function personaSheet(p, after) {
   $("#avBtn", ov).onclick = () => $("#av", ov).click();
   $("#av", ov).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { img = await IMG.put(f); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } catch { toast("이미지를 읽지 못했어요."); } };
   $("#avAi", ov).onclick = () => genImageSheet({ title: "AI로 페르소나 이미지 만들기", aspect: "1:1", refs: img ? [img] : [],
-    prompt: `웹툰풍 프로필 일러스트, ${$("#pd", ov).value.trim() || $("#pn", ov).value.trim() || "인물"}, 정면 상반신, 정사각형 구도, 단순한 배경`,
+    prompt: `${styled("웹툰풍 프로필 일러스트")}, ${$("#pd", ov).value.trim() || $("#pn", ov).value.trim() || "인물"}, 정면 상반신, 정사각형 구도, 단순한 배경`,
     onUse: async (blob) => { img = await IMG.put(blob); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } });
   $("#avDel", ov).onclick = () => { img = ""; $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img: "" }); $("#avDel", ov).hidden = true; };
   $("#psave", ov).onclick = () => {

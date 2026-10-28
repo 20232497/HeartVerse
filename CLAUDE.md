@@ -18,7 +18,7 @@
 - AI 호출: llm() → claude.ai면 sample capability, 아니면 BYOK(api.anthropic.com 스트리밍). JSON 응답은 looseJSON
 - 응답 형식: 본문 + MARK("===STATE===") + 상태창 JSON → parseState()가 나눔. 렌더링을 고쳐도 이 구분자와 파싱은 건드리지 않기
 - 이미지 저장: IMG.put → assets가 있으면 /_blob/<id>, 없으면 shrink한 JPEG data URL을 KV에 넣고 kv:img… 로 참조(validRef로 검사)
-- AI 이미지 생성: 설정의 Gemini API 키(BYOK, localStorage에만 저장)로 geminiImage() 호출, 생성 창은 genImageSheet(). 이미지 슬롯(칸별 AI·빈 칸 채우기)·표지·페르소나에서 사용. 로컬 파일 모드용
+- AI 이미지 생성: 설정의 Gemini API 키(BYOK, localStorage에만 저장)로 geminiImage() 호출, 생성 창은 genImageSheet(). 이미지 슬롯(칸별 AI·빈 칸 채우기)·표지·페르소나에서 사용. 로컬 파일 모드용. 그림체 프리셋(IMG_STYLES: 기본·동양 판타지·웹소설 표지 세미리얼·직접 입력, S.settings.imgStyle/imgStyleCustom)은 styled()로 모든 생성 프롬프트의 맨 앞(그림체 자리)에 들어감
 - 키워드북: char.lore = [{keys, text}] (스튜디오에선 한 줄에 "키워드1, 키워드2 | 설명", parseLore/loreText). buildInput이 최근 3개 메시지에서 키워드를 찾아(matchLore, 최대 6개) rulesPrompt에 넣고, 반영된 키워드는 alt.lore로 남겨 말풍선 아래 📖로 보여 줌. 원본 캐릭터의 최신 키워드북(getChar)을 우선 씀
 - 추천 답변: 응답 JSON의 suggestions를 r.set.sugAuto(기본 켜짐, 출력 설정에서 끔)일 때 응답 직후 바로 펼침 — 추가 AI 호출 없음
 

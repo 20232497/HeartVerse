@@ -18,8 +18,12 @@
 - AI 호출: llm() → claude.ai면 sample capability, 아니면 BYOK(api.anthropic.com 스트리밍). JSON 응답은 looseJSON
 - 응답 형식: 본문 + MARK("===STATE===") + 상태창 JSON → parseState()가 나눔. 렌더링을 고쳐도 이 구분자와 파싱은 건드리지 않기
 - 이미지 저장: IMG.put → assets가 있으면 /_blob/<id>, 없으면 shrink한 JPEG data URL을 KV에 넣고 kv:img… 로 참조(validRef로 검사)
-- AI 이미지 생성: 설정의 Gemini API 키(BYOK, localStorage에만 저장)로 geminiImage() 호출, 생성 창은 genImageSheet(). 이미지 슬롯(칸별 AI·빈 칸 채우기)·표지·페르소나에서 사용. 로컬 파일 모드용. 그림체 프리셋(IMG_STYLES: 기본·동양 판타지·웹소설 표지 세미리얼·직접 입력, S.settings.imgStyle/imgStyleCustom)은 styled()로 모든 생성 프롬프트의 맨 앞(그림체 자리)에 들어감
+- AI 이미지 생성: 설정의 Gemini API 키(BYOK, localStorage에만 저장)로 geminiImage() 호출, 생성 창은 genImageSheet(). 이미지 슬롯(칸별 AI·빈 칸 채우기)·표지·페르소나에서 사용. 로컬 파일 모드용. 그림체 프리셋(IMG_STYLES: 기본·동양 판타지·웹소설 표지 세미리얼·직접 입력, S.settings.imgStyle/imgStyleCustom)은 styled()로 모든 생성 프롬프트의 맨 앞(그림체 자리)에 들어감. 기본값은 novel(세미리얼 2.5D), styleV2가 없는 이전 설정의 none은 한 번 novel로 옮김
+- 그림체 참고 그림: S.settings.styleRefs(최대 3장, IMG.put 참조). geminiImage가 그림체 참고 → 인물 참고 순으로 이미지를 붙이고 "[그림체 참고]/[인물 참고]" 지시를 프롬프트 앞에 넣음(그림체만 따르고 인물·구도·노출은 따르지 않게). 생성 창에서 끌 수 있음. 외부 서비스 그림을 저장소·배포물에 넣지 않기 — 참고 그림은 사용자가 자기 브라우저에 올리는 방식
+- 세계관 일러스트: 상세 페이지 "세계관 일러스트"(키워드북 항목마다 16:9 그림 + 설명)와 openWorldArt(대표 일러스트 3:4 + 항목 그림, AI·올리기·삭제). 내 작품은 mine.img·mine.loreImages(공개 시 pubLore로 /_blob/만), 그 밖은 S.coverpacks·S.lorepacks(KV). coverHTML은 coverpacks를 먼저 봄. coverPrompt()는 world_mode면 히로인 단체 구도
 - 키워드북: char.lore = [{keys, text}] (스튜디오에선 한 줄에 "키워드1, 키워드2 | 설명", parseLore/loreText). buildInput이 최근 3개 메시지에서 키워드를 찾아(matchLore, 최대 6개) rulesPrompt에 넣고, 반영된 키워드는 alt.lore로 남겨 말풍선 아래 📖로 보여 줌. 원본 캐릭터의 최신 키워드북(getChar)을 우선 씀
+- 스트리밍 표시: generate의 show()가 liveFill()로 #liveBubble을 채움. 끝난 줄은 .lv-done에 한 번만 fmt()해서 붙이고(.lv-new로 살짝 나타남), 쓰는 중 줄은 closeOpen()으로 열린 *·"·“·[ 를 임시로 닫아 처음부터 서식대로 .lv-cur에 그림. 이름만 쓰인 줄은 잠깐 숨김
+- 응답 중 스크롤: stick 플래그(bindStick). 맨 아래(8px 이내)면 followLog()로 따라가고, 위로 올리면(휠·터치·키·24px 이상) 멈춤. 응답이 끝나도 renderLog(stick)이라 읽던 위치 유지. '맨 아래로' 버튼(#jumpBtn)
 - 추천 답변: 응답 JSON의 suggestions를 r.set.sugAuto(기본 켜짐, 출력 설정에서 끔)일 때 응답 직후 바로 펼침 — 추가 AI 호출 없음
 
 ## 코딩 규칙

@@ -248,6 +248,13 @@ h2.sec small, h1.sec small { font-family:var(--sans); font-size:12.5px; color:va
 .bubble .dlg { color:var(--fg); font-weight:500; }
 .bubble p.sys { font-size:.88em; color:var(--sys); background:var(--sys-soft); border-radius:8px; padding:5px 10px; margin:0 0 6px; font-weight:500; line-height:1.6; }
 .bubble .spk { font-weight:700; margin-right:4px; }
+.bubble.typing:has(.lv-cur)::after { content:none; }
+.lv-cur p:last-child::after, .lv-cur:empty::after { content:"▍"; color:var(--accent); animation:blink 1s steps(1) infinite; }
+.bubble .lv-done > p:last-child { margin-bottom:9px; }
+.lv-new { animation:lineIn .28s ease-out; }
+@keyframes lineIn { from { opacity:0; transform:translateY(4px); } }
+.jump-wrap { position:sticky; bottom:10px; display:flex; justify-content:center; pointer-events:none; height:0; overflow:visible; }
+.jump { pointer-events:auto; transform:translateY(-100%); border:1px solid var(--line); background:var(--surface); color:var(--fg); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:600; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .bubble.typing::after { content:"▍"; color:var(--accent); animation:blink 1s steps(1) infinite; }
 .thinking { display:inline-flex; gap:4px; padding:4px 0; }
 .thinking i { width:7px; height:7px; border-radius:50%; background:var(--muted); animation:bob 1.2s infinite; }
@@ -404,6 +411,22 @@ details.stat[open] summary::after { content:"▴"; }
 .gen-pv img { max-width:100%; max-height:52vh; border-radius:10px; display:block; }
 .slot .bs button { border:1px solid var(--line); background:var(--bg); border-radius:7px; font-size:11.5px; padding:2px 7px; }
 .casttabs { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:10px; }
+.wgal { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:10px; }
+.wcard { margin:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--bg); display:flex; flex-direction:column; }
+.wpic { display:block; width:100%; aspect-ratio:16/9; border:0; padding:0; background:var(--surface2); overflow:hidden; cursor:zoom-in; }
+.wpic img { width:100%; height:100%; object-fit:cover; display:block; }
+.wpic.ph { display:flex; align-items:center; justify-content:center; height:100%; font-family:var(--display); font-weight:700; color:var(--muted); cursor:default; background:linear-gradient(135deg, var(--surface2), var(--bg)); }
+.wcard figcaption { padding:8px 10px 10px; display:grid; gap:3px; font-size:12.5px; }
+.wcard figcaption b { font-size:13.5px; }
+.wcard figcaption span { color:var(--muted); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.warts { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; align-items:start; }
+.warts .pic.land { aspect-ratio:16/9; }
+.warts .pic.cover-pic { aspect-ratio:3/4; }
+.srefs { display:flex; gap:8px; flex-wrap:wrap; }
+.sref { position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:var(--surface2); padding:0; }
+.sref img { width:100%; height:100%; object-fit:cover; display:block; }
+.sref button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:12px; line-height:1; }
+.sref.add { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; border-style:dashed; cursor:pointer; }
 
 /* ── 스토어 */
 .member { border-radius:20px; padding:22px; color:#fbf3e4; background:radial-gradient(90% 120% at 100% 0%, #6b4a17, transparent 60%), linear-gradient(150deg, #241a2e, #120e18); position:relative; overflow:hidden; }
@@ -1132,6 +1155,23 @@ function shrink(file, max, q, asBlob) {
 }
 
 /* ---------------------------------------------------------------- AI 이미지 생성: 내 Gemini API 키로 직접 호출 */
+/* 그림체 프리셋: 고르면 모든 AI 이미지 프롬프트의 맨 앞(그림체 자리)에 들어감 */
+const IMG_STYLES = {
+  none: ["기본 (프롬프트 그대로)", ""],
+  oriental: ["동양 판타지 일러스트", "2D 애니메이션 일러스트, 가늘고 깔끔한 선화, 셀 채색, 흰색·진홍색·금색만 쓰는 제한된 색, 새까만 단색 배경, 붉은 먹으로 그린 듯한 소용돌이 문양과 금빛 나비 장식, 정면 대칭 구도, 섬세한 동양풍 캐릭터 일러스트"],
+  novel: ["웹소설 표지 세미리얼 (2.5D)", "한국 웹소설 표지풍 세미리얼 2.5D 애니 일러스트, 도자기처럼 매끈한 피부와 은은한 홍조, 속눈썹이 긴 크고 또렷한 눈, 윤기 있는 입술, 한 올 한 올 살린 윤기 나는 머리카락, 부드러운 디지털 페인팅 채색, 영화 같은 역광과 림라이트, 깊은 명암 대비, 빛망울(보케)로 흐리게 처리한 배경, 고해상도 정밀 묘사"],
+  custom: ["직접 입력", ""]
+};
+function imgStyleText() { const k = S.settings.imgStyle; return (k === "custom" ? S.settings.imgStyleCustom || "" : IMG_STYLES[k]?.[1] || "").trim(); }
+function styled(fallback) { return imgStyleText() || fallback; }
+/* 그림체 참고 그림: 설정에 올린 최대 3장을 매 생성 요청 앞에 붙여 그림체만 따르게 함 */
+function styleRefs() { return (S.settings.styleRefs || []).filter(validRef).slice(0, 3); }
+/* 표지 프롬프트: 세계관 작품은 히로인들이 모인 단체 표지, 1인 작품은 주인공 중심 */
+function coverPrompt(c) {
+  const cast = (c.cast || []).filter((x) => x.name), head = `${styled("웹소설 표지풍 일러스트")}${c.title ? `, 작품 「${c.title}」의 표지` : ""}${c.oneLiner ? `. ${c.oneLiner}` : ""}`;
+  if (c.world_mode && cast.length > 1) return `${head}. ${cast.slice(0, 5).map((x) => `${x.name}(${x.look || "인물"})`).join(", ")}이 한 화면에 모인 단체 구도 — 가운데 인물이 가장 앞에 서고 나머지는 뒤로 층을 이룬다. 세계관이 드러나는 배경, 세로 3:4 구도, 글자와 로고 없이`;
+  return `${head}. 주인공 ${cast[0]?.look || c.name || "캐릭터"}, 인물 중심 상반신, 세계관이 드러나는 배경, 세로 3:4 구도, 글자와 로고 없이`;
+}
 const IMG_MODELS = [["gemini-2.5-flash-image", "Gemini 2.5 Flash Image (빠름)"], ["gemini-3-pro-image-preview", "Gemini 3 Pro Image (고품질)"]];
 async function refToPart(ref) {
   try {
@@ -1142,11 +1182,15 @@ async function refToPart(ref) {
     return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
   } catch { return null; }
 }
-async function geminiImage(prompt, { aspect = "4:5", refs = [], signal } = {}) {
+async function geminiImage(prompt, { aspect = "4:5", refs = [], signal, style = true } = {}) {
   if (!S.settings.geminiKey) throw { code: "no_key" };
   const parts = [];
-  for (const r of refs) { const p = validRef(r) && await refToPart(r); if (p) parts.push(p); }
-  parts.push({ text: prompt });
+  let sN = 0, cN = 0;
+  if (style) for (const r of styleRefs()) { const p = await refToPart(r); if (p) { parts.push(p); sN++; } }
+  for (const r of refs) { const p = validRef(r) && await refToPart(r); if (p) { parts.push(p); cN++; } }
+  const guide = (sN ? `[그림체 참고] 앞의 ${sN}장은 그림체 참고용이다. 선·채색·명암·조명·색감, 얼굴과 머리카락을 그리는 방식만 따른다. 그 그림 속 인물·의상·구도·배경·노출 정도·글자는 따라 하지 않는다.\n` : "") +
+    (cN ? `[인물 참고] ${sN ? "이어지는" : "앞의"} ${cN}장 속 인물과 같은 얼굴·머리 모양·체형으로 그린다.\n` : "");
+  parts.push({ text: guide + prompt });
   const model = S.settings.imgModel || IMG_MODELS[0][0];
   let res;
   try {
@@ -1186,7 +1230,8 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
   ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
     <div class="field" style="margin-top:0"><label for="gp">프롬프트</label><textarea id="gp" maxlength="2000" style="min-height:110px">${esc(prompt)}</textarea></div>
     ${refs.length ? `<div class="toggle" style="margin-top:10px"><label for="gref">등록된 이미지를 참고해서 같은 인물로 그리기</label><input type="checkbox" id="gref" checked></div>` : ""}
-    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
+    ${styleRefs().length ? `<div class="toggle" style="margin-top:10px"><label for="gsr">그림체 참고 그림 ${styleRefs().length}장 함께 보내기</label><input type="checkbox" id="gsr" checked></div>` : ""}
+    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(IMG_STYLES[S.settings.imgStyle]?.[0] || IMG_STYLES.none[0])}${styleRefs().length ? ` · 참고 그림 ${styleRefs().length}장` : ""}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
     <div class="cta-row"><button class="btn ghost" data-x>닫기</button><span class="spacer"></span><button class="btn" id="gmk">생성</button><button class="btn pri" id="guse" disabled>이 이미지 쓰기</button></div></div>`;
   document.body.append(ov);
   let blob = null, url = "", ctl = null;
@@ -1197,7 +1242,7 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
     const p = $("#gp", ov).value.trim(); if (!p) { $("#gp", ov).focus(); return; }
     mk.disabled = use.disabled = true; pv.innerHTML = `<span class="note">만드는 중… 10~30초쯤 걸려요</span>`; ctl = new AbortController();
     try {
-      blob = await geminiImage(p, { aspect, refs: $("#gref", ov)?.checked ? refs : [], signal: ctl.signal });
+      blob = await geminiImage(p, { aspect, refs: $("#gref", ov)?.checked ? refs : [], signal: ctl.signal, style: $("#gsr", ov)?.checked ?? true });
       url && URL.revokeObjectURL(url); url = URL.createObjectURL(blob);
       pv.innerHTML = `<img src="${url}" alt="생성된 이미지">`; use.disabled = false; mk.textContent = "다시 생성";
     } catch (e) { if (!ov.isConnected) return; blob = null; pv.innerHTML = `<span class="note">${esc(genErr(e))}</span>`; }
@@ -1215,8 +1260,8 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
 const S = {
   wallet: { hearts: 0, freeDay: today(), freeUsed: 0, pro: null, history: [], ledger: [], ack: {} },
   personas: [{ id: "p1", name: "유저", memo: "", desc: "", img: "", def: true }],
-  profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {},
-  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
+  profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {}, coverpacks: {}, lorepacks: {},
+  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", imgStyle: "novel", imgStyleCustom: "", styleRefs: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
   engine: "pending", cat: "전체", q: ""
 };
 let SAMPLE = null, samplePromise = null, DB = null, DOWNLOADS = null;
@@ -1266,7 +1311,7 @@ function normalizeChar(c) {
 function allChars() { return [...S.mine, ...ORIGINALS, ...S.community.filter((c) => !S.mine.some((m) => m.id === c.id))]; }
 function getChar(id) { return S.mine.find((c) => c.id === id) || ORIGINALS.find((c) => c.id === id) || S.community.find((c) => c.id === id); }
 function coverHTML(c, cls = "", opts = {}) {
-  const pal = PALETTES[c.pal] || PALETTES[0], img = IMG.tag(c.img);
+  const pal = PALETTES[c.pal] || PALETTES[0], img = IMG.tag(S.coverpacks[c.charId || c.id] || c.img);
   const motif = MOTIFS[c.motif] ? c.motif : "glow";
   return `<div class="cover m-${motif} ${img ? "has-img" : ""} ${cls}" style="--c1:${pal[0]};--c2:${pal[1]};--c3:${pal[2]}" aria-hidden="true">${img}` +
     `<span class="glyph">${esc((c.glyph || c.name || "?").slice(0, 1))}</span>` +
@@ -1620,6 +1665,8 @@ function viewDetail(id) {
         <p class="lead">${esc(c.oneLiner)}</p>
         <div class="tags">${(c.tags || []).map((t) => `<span>#${esc(t)}</span>`).join("")}</div>
         <div class="box"><h3>소개</h3><p>${esc(c.desc)}</p></div>
+        <div class="box"><h3 style="display:flex;align-items:center">세계관 일러스트 <span class="spacer"></span><button class="btn sm ghost" id="wArt">일러스트 관리</button></h3>
+          ${worldArtHTML(c) || `<p class="note">대표 일러스트(표지)를 AI로 만들거나 올릴 수 있어요. 키워드북이 있는 작품은 항목마다 세계관 일러스트도 넣을 수 있어요.</p>`}</div>
         <div class="box"><h3 style="display:flex;align-items:center">등장인물 <span class="spacer"></span><button class="btn sm ghost" id="imgSlots">이미지 슬롯 관리</button></h3>
           <div class="cast">${c.cast.map((x) => `<button data-cast="${esc(x.code)}" title="${esc(x.look || x.name)}">${portraitHTML(c, x)}<b>${esc(x.name)}</b></button>`).join("")}</div></div>
         <div class="box"><h3>${c.world_mode ? "게임 모드 · 시작 상황" : "시작 상황"}</h3><div class="openings">
@@ -1636,6 +1683,8 @@ function viewDetail(id) {
   bindGo(v); IMG.hydrate(v);
   $$("[data-room]", v).forEach((b) => b.onclick = () => go("r-" + b.dataset.room));
   $("#imgSlots").onclick = () => openImageSlots(c);
+  $("#wArt").onclick = () => openWorldArt(c);
+  $$("[data-wlb]", v).forEach((b) => b.onclick = () => { const i = b.querySelector("img"); if (i?.src) lightbox(i.src); });
   $$("[data-cast]", v).forEach((b) => b.onclick = () => openImageSlots(c, b.dataset.cast));
   $("#start").onclick = () => {
     if (rooms.length >= plan().rooms) return plusSheet("rooms");
@@ -1666,7 +1715,7 @@ async function viewChat(id) {
       <button class="model-chip" id="modelChip" aria-label="AI 모델 선택"></button>
       <button class="icon-btn" id="info" aria-label="대화방 관리">${ICON.menu}</button>
     </header>
-    <div class="chat-log" id="log"><div class="log-inner" id="logInner"></div></div>
+    <div class="chat-log" id="log"><div class="log-inner" id="logInner"></div><div class="jump-wrap"><button class="jump" id="jumpBtn" type="button" hidden>↓ 맨 아래로</button></div></div>
     <div class="composer"><div class="inner">
       <div class="sug-panel" id="sugPanel" hidden></div>
       <div class="bar2">
@@ -1705,6 +1754,7 @@ async function viewChat(id) {
     const ok = await sendTurn(t);
     if (ok && inp.value.trim() === t) { inp.value = ""; inp.oninput(); }
   };
+  bindStick($("#log"));
   renderLog(true); updateMeter(); updateComposer();
 }
 let hintTimer = null;
@@ -1802,6 +1852,49 @@ function fmt(text, c, persona) {
   return out.join("");
 }
 function pavHTML(p) { const img = IMG.tag(p.img); return `<div class="pav">${img || esc((p.name || "?").slice(0, 1))}</div>`; }
+/* 스트리밍 표시: 끝난 줄은 한 번만 서식을 입혀 붙이고(살짝 나타남), 쓰는 중인 줄은 열린 *·" 를 임시로 닫아 처음부터 서식대로 보여 줌 */
+function closeOpen(line) {
+  const st = [];
+  for (const ch of line) {
+    if (ch === "*" || ch === '"') { if (st.at(-1) === ch) st.pop(); else st.push(ch); }
+    else if (ch === "“") st.push("”");
+    else if (ch === "”" && st.at(-1) === "”") st.pop();
+  }
+  let out = line + st.reverse().join("");
+  if (/^\s*\[(?!\[)[^\]]*$/.test(out)) out += "]";
+  return out;
+}
+function liveFill(el, text, c, persona, anim = true) {
+  let done = el.querySelector(".lv-done"), cur = el.querySelector(".lv-cur");
+  if (!done) { el.innerHTML = `<div class="lv-done"></div><div class="lv-cur"></div>`; done = el.firstChild; cur = el.lastChild; el.dataset.n = "0"; }
+  const lines = text.split("\n"), last = lines.pop(), n = +(el.dataset.n || 0);
+  if (lines.length > n) {
+    const before = done.children.length;
+    done.insertAdjacentHTML("beforeend", fmt(lines.slice(n).join("\n"), c, persona));
+    if (anim) [...done.children].slice(before).forEach((x) => x.classList.add("lv-new"));
+    el.dataset.n = String(lines.length);
+  }
+  // 이름만 쓰인 상태(곧 "이름: 대사"가 될 수 있음)는 잠깐 숨겨 서식이 바뀌어 보이지 않게
+  cur.innerHTML = /^[^\s:*"“\[]{1,14}$/.test(last.trim()) ? "" : fmt(closeOpen(last), c, persona);
+}
+/* 응답 중 스크롤: 맨 아래에 있을 때만 따라 내려가고, 사용자가 위로 올리면 멈춤 */
+let stick = true;
+function followLog() { const log = $("#log"); if (log && stick) log.scrollTop = log.scrollHeight; }
+function bindStick(log) {
+  if (!log) return;
+  stick = true; let ty = 0;
+  const jump = $("#jumpBtn", log);
+  log.addEventListener("scroll", () => {
+    const d = log.scrollHeight - log.scrollTop - log.clientHeight;
+    if (d < 8) stick = true; else if (d > 24) stick = false;
+    if (jump) jump.hidden = d < 160;
+  }, { passive: true });
+  log.addEventListener("wheel", (e) => { if (e.deltaY < 0) stick = false; }, { passive: true });
+  log.addEventListener("touchstart", (e) => { ty = e.touches[0].clientY; }, { passive: true });
+  log.addEventListener("touchmove", (e) => { const y = e.touches[0].clientY; if (y > ty + 4) stick = false; ty = y; }, { passive: true });
+  log.addEventListener("keydown", (e) => { if (["ArrowUp", "PageUp", "Home"].includes(e.key)) stick = false; });
+  if (jump) jump.onclick = () => { stick = true; log.scrollTo({ top: log.scrollHeight, behavior: "smooth" }); };
+}
 function renderLog(scroll) {
   const box = $("#logInner"); if (!box) return;
   const r = room, c = r.char, lastIdx = r.msgs.map((m) => m.role).lastIndexOf("ai");
@@ -1821,7 +1914,7 @@ function renderLog(scroll) {
     let body;
     if (m.editing) body = editBox(alt.text, i);
     else if (pending && !alt.text) body = `<div class="bubble"><span class="thinking" aria-label="응답 생성 중"><i></i><i></i><i></i></span></div>`;
-    else body = `<div class="bubble ${pending ? "typing" : ""}" ${pending ? 'id="liveBubble"' : ""}>${fmt(alt.text || "", c, r.persona)}</div>`;
+    else body = pending ? `<div class="bubble typing" id="liveBubble"></div>` : `<div class="bubble">${fmt(alt.text || "", c, r.persona)}</div>`;
     html += `<div class="msg" data-id="${m.id}">${coverHTML(c)}<div class="col"><span class="nm">${esc(speakerName(r))}</span>${body}`;
     if (!pending && !m.editing) {
       html += statusBlock(c, alt.status, m.statusBefore, { open: isLast, live: isLast });
@@ -1839,6 +1932,8 @@ function renderLog(scroll) {
   });
   if (r.lastErr) html += `<div class="err-line" role="alert">${esc(r.lastErr)} <button class="btn sm" id="retry">다시 시도</button></div>`;
   box.innerHTML = html;
+  const lb = $("#liveBubble", box), gm = gen && r.msgs.find((m) => m.id === gen.msgId);
+  if (lb && gm) liveFill(lb, gm.alts[gm.idx]?.text || "", c, r.persona, false);
   bindLog(box); IMG.hydrate(box);
   if (scroll) { const log = $("#log"); log.scrollTop = log.scrollHeight; }
 }
@@ -1936,14 +2031,14 @@ async function generate(target, q, direction = "", isEdit = false) {
   charge(q, label);
   const ctl = new AbortController();
   gen = { ctl, msgId: msg.id };
-  renderLog(true); updateComposer();
+  stick = true; renderLog(true); updateComposer();
   const show = (t) => {
     const body = t.split(MARK)[0].replace(/\n?=+[A-Z]*=*\s*$/, "").replace(/\[\[[^\]]*$/, "");
     msg.alts[altIdx].text = body.trim();
     if (room !== r) return;
     const el = $("#liveBubble");
-    if (el) { el.innerHTML = fmt(msg.alts[altIdx].text, c, r.persona); IMG.hydrate(el); const log = $("#log"); if (log && log.scrollHeight - log.scrollTop - log.clientHeight < 240) log.scrollTop = log.scrollHeight; }
-    else renderLog(true);
+    if (el) { liveFill(el, msg.alts[altIdx].text, c, r.persona); IMG.hydrate(el); followLog(); }
+    else renderLog(stick);
   };
   try {
     const text = await llm(input, { tier: MODELS[model].tier, signal: ctl.signal, onText: ({ text }) => show(text), maxTokens: { short: 1200, mid: 2000, long: 3200 }[r.set.len] });
@@ -1965,9 +2060,9 @@ async function generate(target, q, direction = "", isEdit = false) {
     gen = null;
     saveRoom(r);
     if (room === r && $("#logInner")) {
-      renderLog(true); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true });
+      renderLog(stick); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true });
       // 응답과 함께 온 추천 답변을 바로 펼침 (추가 호출 없음)
-      if (r.set.sugAuto !== false && msg === lastAi(r) && msg.alts[msg.idx]?.suggestions?.length && $("#sugPanel")?.hidden) { toggleSug(); const log = $("#log"); if (log) log.scrollTop = log.scrollHeight; }
+      if (r.set.sugAuto !== false && msg === lastAi(r) && msg.alts[msg.idx]?.suggestions?.length && $("#sugPanel")?.hidden) { toggleSug(); followLog(); }
     }
     maybeSummarize(r);
   }
@@ -2347,7 +2442,7 @@ function openImageSlots(c, code) {
   const store = () => mine ? (mine.images ||= {}) : (S.imgpacks[c.id] ||= {});
   const persist = () => { if (mine) { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); } else KV.set("imgpacks", S.imgpacks); };
   const put = async (file, sit, code = cur) => { const ref = await IMG.put(file); const m = store()[code] || {}; IMG.drop(m[sit]); m[sit] = ref; store()[code] = m; };
-  const prompt = (cast, i) => `웹툰풍 캐릭터 일러스트, ${cast.look || cast.name}, ${SIT[i]} 표정과 자세, 상반신, 세로 4:5 구도, 「${c.title}」 분위기의 배경`;
+  const prompt = (cast, i) => `${styled("웹툰풍 캐릭터 일러스트")}, ${cast.look || cast.name}, ${SIT[i]} 표정과 자세, 상반신, 세로 4:5 구도, 「${c.title}」 분위기의 배경`;
   const refsFor = (code, i) => { const s = imagesOf(c)[code] || {}; return [0, 1].filter((k) => k !== i && validRef(s[k])).slice(0, 1).map((k) => s[k]); };
   let live = null, bulk = null;
   const paint = () => {
@@ -2397,6 +2492,58 @@ function openImageSlots(c, code) {
       persist(); paint(); toast(`${ok}장 등록${skip ? `, ${skip}장은 번호를 알 수 없어 건너뛰었어요` : ""}`);
     };
     $("#prompt", ov).onclick = () => copyText(SIT.map((s, i) => `${i} ${s}: ${prompt(cast, i)}`).join("\n"), "15장 분량의 프롬프트를 복사했어요");
+  };
+  paint();
+}
+
+/* ---------------------------------------------------------------- 세계관 일러스트: 대표 일러스트(표지) + 키워드북 항목별 그림.
+   내 작품은 작품(img·loreImages)에, 그 밖의 작품은 내 계정(coverpacks·lorepacks)에 저장 */
+function loreImg(c, key) { const live = getChar(c.id) || c; return (S.lorepacks[c.id] || {})[key] || (live.loreImages || {})[key] || ""; }
+function lorePrompt(c, e) { return `${styled("세계관 일러스트")}, 「${c.title}」의 세계관 일러스트 — ${e.keys[0]}: ${e.text} 장소와 분위기가 잘 드러나는 장면, 인물이 나오면 작게, 가로 16:9 구도, 글자와 로고 없이`; }
+function pubLore(m) { const out = {}; for (const [k, ref] of Object.entries(m || {}).slice(0, 40)) if (typeof ref === "string" && ref.startsWith("/_blob/") && validRef(ref)) out[String(k).slice(0, 20)] = ref; return out; }
+function worldArtHTML(c) {
+  const lore = (getChar(c.id) || c).lore || [];
+  if (!lore.length) return "";
+  return `<div class="wgal">${lore.map((e) => { const ref = loreImg(c, e.keys[0]); return `<figure class="wcard">${ref ? `<button class="wpic" data-wlb="${esc(e.keys[0])}" aria-label="${esc(e.keys[0])} 크게 보기">${IMG.tag(ref)}</button>` : `<div class="wpic ph">${esc(e.keys[0])}</div>`}<figcaption><b>${esc(e.keys[0])}</b><span>${esc(e.text)}</span></figcaption></figure>`; }).join("")}</div>`;
+}
+function openWorldArt(c) {
+  c = normalizeChar(getChar(c.id) || c);
+  const mine = S.mine.find((m) => m.id === c.id), lore = c.lore || [];
+  const saveMine = () => { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); };
+  const getCover = () => mine ? mine.img : S.coverpacks[c.id];
+  const setRef = (key, ref) => {
+    if (key === "__cover") {
+      if (mine) { IMG.drop(mine.img); mine.img = ref; saveMine(); }
+      else { IMG.drop(S.coverpacks[c.id]); if (ref) S.coverpacks[c.id] = ref; else delete S.coverpacks[c.id]; KV.set("coverpacks", S.coverpacks); }
+    } else {
+      const st = mine ? (mine.loreImages ||= {}) : (S.lorepacks[c.id] ||= {});
+      IMG.drop(st[key]); if (ref) st[key] = ref; else delete st[key];
+      if (mine) saveMine(); else KV.set("lorepacks", S.lorepacks);
+    }
+    if (location.hash.slice(1) === "c-" + c.id) viewDetail(c.id);
+  };
+  let live = null;
+  const paint = () => {
+    const cov = getCover() || "";
+    const btns = (key, has) => `<div class="bs"><button data-wup="${esc(key)}">${has ? "바꾸기" : "올리기"}</button><button data-wai="${esc(key)}">AI</button>${has ? `<button data-wrm="${esc(key)}">삭제</button>` : ""}</div>`;
+    const ov = sheet(`<div class="sheet-head"><h2>세계관 일러스트</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
+      <p class="sub">대표 일러스트는 표지·카드·대화방에, 항목 그림은 작품 소개의 세계관 일러스트에 보여요. AI는 설정의 그림체 프리셋과 참고 그림을 따라요.${mine ? "" : " 이 작품의 그림은 내 계정에만 저장돼요."}</p>
+      <div class="warts">
+        <div class="slot"><div class="pic cover-pic">${cov ? IMG.tag(cov) : `<div class="wpic ph">표지</div>`}</div><span class="lb">대표 일러스트 <small>3:4</small></span>${btns("__cover", !!cov)}</div>
+        ${lore.map((e) => { const ref = loreImg(c, e.keys[0]); return `<div class="slot"><div class="pic land">${ref ? IMG.tag(ref) : `<div class="wpic ph">${esc(e.keys[0])}</div>`}</div><span class="lb">${esc(e.keys[0])} <small>16:9</small></span>${btns(e.keys[0], !!ref)}</div>`; }).join("")}
+      </div>
+      ${lore.length ? "" : `<p class="note" style="margin-top:10px">키워드북이 없는 작품이라 대표 일러스트만 넣을 수 있어요.</p>`}
+      <input type="file" id="wfile" accept="image/png,image/jpeg,image/webp" hidden>`, "wide");
+    live = ov; IMG.hydrate(ov);
+    let target = "";
+    $$("[data-wup]", ov).forEach((b) => b.onclick = () => { target = b.dataset.wup; $("#wfile", ov).click(); });
+    $$("[data-wrm]", ov).forEach((b) => b.onclick = () => { setRef(b.dataset.wrm, ""); paint(); });
+    $("#wfile", ov).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; toast("올리는 중…"); try { setRef(target, await IMG.put(f)); paint(); toast("그림을 넣었어요"); } catch { toast("이미지를 읽지 못했어요. PNG·JPG로 다시 올려 주세요."); } };
+    $$("[data-wai]", ov).forEach((b) => b.onclick = () => {
+      const key = b.dataset.wai, e = lore.find((x) => x.keys[0] === key), cover = key === "__cover";
+      genImageSheet({ title: `${c.title} · ${cover ? "대표 일러스트" : key}`, aspect: cover ? "3:4" : "16:9", prompt: cover ? coverPrompt(c) : lorePrompt(c, e),
+        onUse: async (blob) => { setRef(key, await IMG.put(blob)); if (live?.isConnected) paint(); toast(cover ? "대표 일러스트를 넣었어요" : "세계관 일러스트를 넣었어요"); } });
+    });
   };
   paint();
 }
@@ -2511,7 +2658,7 @@ function viewStudio(id) {
   $("#imgAi").onclick = () => {
     collect(); const lead = d.cast?.[0] || {}, s = (d.images || {})[lead.code] || {};
     genImageSheet({ title: "AI로 표지 만들기", aspect: "3:4", refs: [s[0], s[1]].filter(validRef).slice(0, 1),
-      prompt: `웹소설 표지풍 일러스트${d.title ? `, 작품 「${d.title}」` : ""}${d.oneLiner ? `, ${d.oneLiner}` : ""}, 주인공 ${lead.look || d.name || "캐릭터"}, 세로 3:4 구도, 인물 중심, 글자나 로고 없이`,
+      prompt: coverPrompt(d),
       onUse: async (blob) => { collect(); d.img = await IMG.put(blob); viewStudio(id); toast("표지 이미지를 넣었어요"); } });
   };
   const sl = $("#slots"); if (sl) sl.onclick = () => { const m = S.mine.find((x) => x.id === d.id); if (m) openImageSlots(m); };
@@ -2594,7 +2741,7 @@ function pubImages(images) {
 }
 async function publishCommunity() {
   if (!DB || !KV.uid) return;
-  const pubs = S.mine.filter((m) => m.publish).map((m) => ({ ...m, img: typeof m.img === "string" && m.img.startsWith("kv:") ? "" : m.img, images: pubImages(m.images), creator: S.profile.nick || "익명 크리에이터" }));
+  const pubs = S.mine.filter((m) => m.publish).map((m) => ({ ...m, img: typeof m.img === "string" && m.img.startsWith("kv:") ? "" : m.img, images: pubImages(m.images), loreImages: pubLore(m.loreImages), creator: S.profile.nick || "익명 크리에이터" }));
   try { if (pubs.length) await DB.doc("pub/" + KV.uid).set({ chars: pubs, at: Date.now() }); else await DB.doc("pub/" + KV.uid).delete(); }
   catch { if (pubs.length) toast("커뮤니티 공개는 이 페이지에 참여 권한이 있는 사람만 할 수 있어요. 캐릭터는 내 보관함에 저장됐어요."); }
 }
@@ -2607,7 +2754,7 @@ function cleanChar(c) {
   const cast = Array.isArray(c.cast) ? c.cast.slice(0, 12).map((x) => ({ code: s(x?.code, 8).toLowerCase().replace(/[^a-z0-9]/g, ""), name: s(x?.name, 16), look: s(x?.look, 200) })).filter((x) => x.code && x.name) : [];
   return { id: c.id, name: s(c.name, 16), title: s(c.title, 24), oneLiner: s(c.oneLiner, 70), cat: CATS.includes(c.cat) ? c.cat : "일상",
     tags: Array.isArray(c.tags) ? c.tags.map((t) => s(t, 12)).slice(0, 5) : [], glyph: s(c.glyph, 1), pal: PALETTES[c.pal] ? c.pal : 0, motif: MOTIFS[c.motif] ? c.motif : "glow",
-    img: validRef(c.img) && !String(c.img).startsWith("kv:") ? c.img : "", images: pubImages(c.images), world_mode: !!c.world_mode,
+    img: validRef(c.img) && !String(c.img).startsWith("kv:") ? c.img : "", images: pubImages(c.images), loreImages: pubLore(c.loreImages), world_mode: !!c.world_mode,
     desc: s(c.desc, 600), persona: s(c.persona, 3000), world: s(c.world, 2500), speech: s(c.speech, 800), secret: s(c.secret, 200),
     fields: fields.includes(gauge) ? fields : [gauge, ...fields], gauge, cast: cast.length ? cast : [{ code: "c", name: s(c.name, 16), look: "" }],
     lore: Array.isArray(c.lore) ? c.lore.slice(0, 40).map((e) => ({ keys: Array.isArray(e?.keys) ? e.keys.map((k) => s(k, 20)).filter(Boolean).slice(0, 6) : [], text: s(e?.text, 400) })).filter((e) => e.keys.length && e.text) : [], creator: s(c.creator, 20) || "익명 크리에이터",
@@ -2747,6 +2894,11 @@ function viewMe() {
         <div class="field"><label for="gkey">Gemini API 키 (AI 이미지 생성 · 파일로 열었을 때)</label><input id="gkey" type="password" autocomplete="off" placeholder="AIza..." value="${esc(S.settings.geminiKey)}"></div>
         <div class="field"><label for="gmodel">이미지 모델</label><select id="gmodel">${[...IMG_MODELS, ...(IMG_MODELS.some((m) => m[0] === S.settings.imgModel) ? [] : [[S.settings.imgModel, S.settings.imgModel]])].map(([k, l]) => `<option value="${esc(k)}" ${S.settings.imgModel === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
       </div>
+      <div class="field"><label for="gstyle">그림체 프리셋</label><select id="gstyle">${Object.entries(IMG_STYLES).map(([k, [l]]) => `<option value="${k}" ${(S.settings.imgStyle || "none") === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+      <div class="field" id="gstyleBox" ${(S.settings.imgStyle || "none") === "none" ? "hidden" : ""}><label for="gstyleTxt">그림체 문구 — 슬롯·표지·페르소나의 AI 프롬프트 맨 앞에 들어가요. 고치면 '직접 입력'으로 바뀌어요.</label><textarea id="gstyleTxt" maxlength="600" style="min-height:76px">${esc(imgStyleText())}</textarea></div>
+      <div class="field"><span class="lbl">그림체 참고 그림 (최대 3장) — AI 이미지를 만들 때마다 함께 보내 이 그림체를 따르게 해요</span>
+        <div class="srefs" id="srefs"></div><input type="file" id="srefFile" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <p class="note" style="margin:4px 0 0">선·채색·조명 같은 그림체만 참고하고 인물·구도·노출은 따라 하지 않게 지시해요. 다른 서비스나 작가의 그림보다 직접 만든 그림을 넣는 걸 권해요. 바로 저장되고 이 브라우저에만 남아요.</p></div>
       <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="gtest">이미지 생성 테스트</button><span class="note" id="gtestMsg">키는 Google AI Studio에서 받을 수 있어요. 이 브라우저에만 저장돼요.</span></div>
       <p class="note" style="margin-top:6px">현재 AI 연결: <b>${engineName()}</b>. claude.ai에서 열면 내 Claude 계정으로 대화해요. 키는 이 브라우저에만 저장돼요.</p>
       <p class="note">저장 위치: ${KV.dbOk ? "내 claude.ai 계정 (기기 간 동기화)" : "이 브라우저"} · 이미지: ${IMG.assets ? "아티팩트 저장소" : "압축 후 내 저장 공간"}</p>
@@ -2758,19 +2910,37 @@ function viewMe() {
   $$("[data-def]", v).forEach((b) => b.onclick = () => { S.personas.forEach((p) => p.def = p.id === b.dataset.def); KV.set("personas", S.personas); viewMe(); });
   $$("[data-pedit]", v).forEach((b) => b.onclick = () => personaSheet(S.personas.find((p) => p.id === b.dataset.pedit), viewMe));
   const pa = $("#padd"); if (pa) pa.onclick = () => personaSheet(null, viewMe);
+  const gs = $("#gstyle"), gt = $("#gstyleTxt");
+  gs.onchange = () => { const k = gs.value; $("#gstyleBox").hidden = k === "none"; gt.value = k === "custom" ? S.settings.imgStyleCustom || gt.value : IMG_STYLES[k][1]; };
+  gt.oninput = () => { if (gs.value !== "custom") gs.value = "custom"; };
+  const saveStyle = () => { S.settings.imgStyle = gs.value; if (gs.value === "custom") S.settings.imgStyleCustom = gt.value.trim(); };
+  const paintSref = () => {
+    const box = $("#srefs"), refs = styleRefs();
+    box.innerHTML = refs.map((r, i) => `<span class="sref">${IMG.tag(r)}<button data-srm="${i}" aria-label="참고 그림 빼기">✕</button></span>`).join("") + (refs.length < 3 ? `<button class="sref add" id="srefAdd" type="button">+ 추가</button>` : "");
+    IMG.hydrate(box);
+    $$("[data-srm]", box).forEach((b) => b.onclick = () => { const r = styleRefs()[+b.dataset.srm]; IMG.drop(r); S.settings.styleRefs = styleRefs().filter((x) => x !== r); saveSettings(); paintSref(); });
+    const add = $("#srefAdd", box); if (add) add.onclick = () => $("#srefFile").click();
+  };
+  $("#srefFile").onchange = async (e) => {
+    const files = [...e.target.files].slice(0, 3 - styleRefs().length); e.target.value = "";
+    if (!files.length) return; toast("올리는 중…");
+    try { for (const f of files) S.settings.styleRefs = [...styleRefs(), await IMG.put(f)]; saveSettings(); paintSref(); toast("참고 그림을 넣었어요"); }
+    catch { toast("이미지를 읽지 못했어요. PNG·JPG로 다시 올려 주세요."); }
+  };
+  paintSref();
   $("#setSave").onclick = () => {
     S.settings.fs = +$("#fs").value; S.settings.theme = $("#th").value; S.settings.apiKey = $("#key").value.trim();
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value;
+    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle();
     saveSettings(); applySettings(); if (S.engine === "none" && S.settings.apiKey) S.engine = "byok"; toast("설정을 저장했어요"); viewMe();
   };
   $("#gtest").onclick = () => {
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveSettings();
-    genImageSheet({ title: "이미지 생성 테스트", aspect: "1:1", prompt: "웹툰풍 일러스트, 창가에서 커피를 마시는 고양이, 따뜻한 오후 햇살",
+    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle(); saveSettings();
+    genImageSheet({ title: "이미지 생성 테스트", aspect: "1:1", prompt: `${styled("웹툰풍 일러스트")}, 창가에서 커피를 마시는 고양이, 따뜻한 오후 햇살`,
       onUse: async () => toast("테스트 이미지는 저장하지 않아요. 키가 잘 작동해요!") });
   };
   $("#reset").onclick = () => confirmSheet("모든 데이터를 지울까요?", "대화방, 만든 캐릭터, 하트, 페르소나, 이미지 연결이 모두 지워져요. 되돌릴 수 없어요.", "전부 삭제", () => {
     S.rooms.forEach((r) => KV.set(roomKey(r.id), undefined));
-    ["rooms", "mine", "wallet", "personas", "profile", "imgpacks"].forEach((k) => KV.set(k, undefined));
+    ["rooms", "mine", "wallet", "personas", "profile", "imgpacks", "coverpacks", "lorepacks"].forEach((k) => KV.set(k, undefined));
     S.mine = []; publishCommunity();
     setTimeout(() => location.reload(), 600);
   });
@@ -2788,7 +2958,7 @@ function personaSheet(p, after) {
   $("#avBtn", ov).onclick = () => $("#av", ov).click();
   $("#av", ov).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { img = await IMG.put(f); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } catch { toast("이미지를 읽지 못했어요."); } };
   $("#avAi", ov).onclick = () => genImageSheet({ title: "AI로 페르소나 이미지 만들기", aspect: "1:1", refs: img ? [img] : [],
-    prompt: `웹툰풍 프로필 일러스트, ${$("#pd", ov).value.trim() || $("#pn", ov).value.trim() || "인물"}, 정면 상반신, 정사각형 구도, 단순한 배경`,
+    prompt: `${styled("웹툰풍 프로필 일러스트")}, ${$("#pd", ov).value.trim() || $("#pn", ov).value.trim() || "인물"}, 정면 상반신, 정사각형 구도, 단순한 배경`,
     onUse: async (blob) => { img = await IMG.put(blob); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } });
   $("#avDel", ov).onclick = () => { img = ""; $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img: "" }); $("#avDel", ov).hidden = true; };
   $("#psave", ov).onclick = () => {
@@ -2812,7 +2982,9 @@ function applySettings() {
 
 /* ---------------------------------------------------------------- 부팅 */
 async function loadAll() {
-  const [w, p, pr, mine, rooms, packs, mc] = await Promise.all(["wallet", "personas", "profile", "mine", "rooms", "imgpacks", "memcfg"].map((k) => KV.get(k)));
+  const [w, p, pr, mine, rooms, packs, mc, cps, lps] = await Promise.all(["wallet", "personas", "profile", "mine", "rooms", "imgpacks", "memcfg", "coverpacks", "lorepacks"].map((k) => KV.get(k)));
+  if (cps && typeof cps === "object") S.coverpacks = cps;
+  if (lps && typeof lps === "object") S.lorepacks = lps;
   if (w && typeof w === "object") S.wallet = { ...S.wallet, ...w, history: Array.isArray(w.history) ? w.history : [], ledger: Array.isArray(w.ledger) ? w.ledger : [], ack: w.ack && typeof w.ack === "object" ? w.ack : {} };
   else if (!S.wallet.welcomed) { S.wallet.hearts = WELCOME; S.wallet.welcomed = true; ledger(WELCOME, "첫 방문 보너스"); KV.set("wallet", S.wallet); }
   if (Array.isArray(p) && p.length) S.personas = p.map((x) => ({ memo: "", img: "", ...x }));
@@ -2824,7 +2996,10 @@ async function loadAll() {
   refreshFree();
 }
 async function boot() {
-  try { const s = JSON.parse(localStorage.getItem("hv1_settings") || "null"); if (s) S.settings = { ...S.settings, ...s, memCfg: { ...S.settings.memCfg, ...(s.memCfg || {}) } }; } catch {}
+  try { const s = JSON.parse(localStorage.getItem("hv1_settings") || "null"); if (s) S.settings = { ...S.settings, ...s, memCfg: { ...S.settings.memCfg, ...(s.memCfg || {}) } };
+    // 그림체를 아직 고른 적 없는 이전 설정은 웹소설 표지 세미리얼로 한 번 옮김
+    if (s && !s.styleV2 && (!s.imgStyle || s.imgStyle === "none")) S.settings.imgStyle = "novel";
+    if (!Array.isArray(S.settings.styleRefs)) S.settings.styleRefs = []; } catch {}
   applySettings();
   await loadAll();
   renderShell(); route();
@@ -2853,7 +3028,7 @@ async function boot() {
           DB = db; KV.db = db; KV.uid = id; KV.dbOk = true;
           const remoteRooms = await KV.get("rooms");
           if (remoteRooms === undefined || remoteRooms === null) {
-            ["wallet", "personas", "profile", "mine", "rooms", "imgpacks", "memcfg"].forEach((k) => { const v = KV.getLocal(k); if (v !== undefined) KV.set(k, v); });
+            ["wallet", "personas", "profile", "mine", "rooms", "imgpacks", "memcfg", "coverpacks", "lorepacks"].forEach((k) => { const v = KV.getLocal(k); if (v !== undefined) KV.set(k, v); });
             S.rooms.forEach((r) => { const v = KV.getLocal(roomKey(r.id)); if (v) KV.set(roomKey(r.id), v); });
           } else { await loadAll(); renderRailRecent(); renderWalletChips(); if (!location.hash.startsWith("#r-")) route(); }
           watchCommunity();

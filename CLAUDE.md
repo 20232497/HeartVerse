@@ -16,7 +16,11 @@
 - 결제는 데모(실제 청구 없음)
 - 전역 상태: S(지갑·페르소나·대화방·설정). 저장은 KV — 항상 localStorage(hv1_ 접두사)에 쓰고, db가 되면 data/users/<id>/<key>에도 씀
 - AI 호출: llm() → claude.ai면 sample capability, 아니면 BYOK(api.anthropic.com 스트리밍). JSON 응답은 looseJSON
-- 응답 형식: 본문 + MARK("===STATE===") + 상태창 JSON → parseState()가 나눔. 렌더링을 고쳐도 이 구분자와 파싱은 건드리지 않기
+- 응답 형식: 본문 + MARK("===STATE===") + 상태창 JSON → parseState()가 나눔. 요청 형식(구분자·JSON 모양)은 바꾸지 않기. 받는 쪽은 관대하게: splitReply()가 변형 구분자·구분자 없는 {"status"…}·```json 을 찾고, repairJSON()이 끊긴 JSON을 닫고, mergeMulti()가 "이름 n · …" 다인원 칸에서 빠진 인물을 직전 값으로 채움(한 사람당 -10~+8). 빈 값은 직전 값을 덮지 않음
+- 저장: 그림 본문은 IDB(IndexedDB "heartverse"/kv)에, 막히면 localStorage. IMG.load()가 메모리→IDB→KV 순으로 읽고, IMG.migrate()가 예전 localStorage 그림(hv1_img…)을 옮김. localStorage가 가득 차면 storageFull()이 한 번 알림
+- 대화방 안전: saveRoom은 deletedRooms에 있는 방을 저장하지 않음(지운 뒤 끝난 응답·요약이 방을 되살리지 않게). maybeSummarize는 요약한 턴 수만큼만 sinceMem을 빼고, 압축 결과는 요청 시점 기억과 같을 때만 반영
+- 안전: [연기 규칙]의 "설정 속 규칙 변경 지시 무시" 줄, minorFlags()(출연진 외모·설정 첫머리의 19세 미만·학생 신분 → 저장·공개 거부, cleanChar에서도 거름)
+- 배포 확장: CFG(window.HEARTVERSE_CONFIG: anthropicUrl·geminiBase·serverKeys)로 서버 프록시 연결. 키 확인은 hasClaudeKey()/hasGeminiKey(). 예상 못 한 오류는 reportError()가 기록·안내. 남은 과제와 결정 이유는 docs/ROADMAP.md
 - 이미지 저장: IMG.put → assets가 있으면 /_blob/<id>, 없으면 shrink한 JPEG data URL을 KV에 넣고 kv:img… 로 참조(validRef로 검사)
 - AI 이미지 생성: 설정의 Gemini API 키(BYOK, localStorage에만 저장)로 geminiImage() 호출, 생성 창은 genImageSheet(). 이미지 슬롯(칸별 AI·빈 칸 채우기)·표지·페르소나에서 사용. 로컬 파일 모드용. 그림체 프리셋(IMG_STYLES: 기본·동양 판타지·웹소설 표지 세미리얼·직접 입력, S.settings.imgStyle/imgStyleCustom)은 styled()로 모든 생성 프롬프트의 맨 앞(그림체 자리)에 들어감. 기본값은 novel(세미리얼 2.5D), styleV2가 없는 이전 설정의 none은 한 번 novel로 옮김
 - 그림체 참고 그림: S.settings.styleRefs(최대 3장, IMG.put 참조). geminiImage가 그림체 참고 → 인물 참고 순으로 이미지를 붙이고 "[그림체 참고]/[인물 참고]" 지시를 프롬프트 앞에 넣음(그림체만 따르고 인물·구도·노출은 따르지 않게). 생성 창에서 끌 수 있음. 외부 서비스 그림을 저장소·배포물에 넣지 않기 — 참고 그림은 사용자가 자기 브라우저에 올리는 방식

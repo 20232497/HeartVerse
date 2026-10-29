@@ -21,6 +21,12 @@
 - 하트·PLUS 요금제(데모 결제), 하트 사용 내역
 - 크리에이터 스튜디오, 커뮤니티 공개, 페르소나
 
+## 안정성
+- 그림은 IndexedDB에 저장(브라우저 localStorage 5MB 한도 문제 해결, 예전 그림 자동 이전), 저장 공간이 가득 차면 알림
+- AI 응답 형식이 흐트러지거나 중간에 끊겨도 상태창·추천 답변을 최대한 살리고, 여러 인물 호감도에서 빠진 인물은 직전 값 유지
+- 등장인물은 모두 성인(만 19세 이상)만 저장·공개 가능
+- 서버 프록시 연결 지점(`window.HEARTVERSE_CONFIG`)과 남은 과제는 [docs/ROADMAP.md](docs/ROADMAP.md)
+
 ## 폴더
 - `index.html` 현재 버전(v2)
 - `archive/heartverse_v1.html` 최초 시험 버전

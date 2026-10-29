@@ -20,7 +20,7 @@
 
 - **Next.js/React 전면 재작성(가이드 2-2, 3장, Phase 1·3)** — 배포 형태(claude.ai 아티팩트 단일 파일, 파일로 열어 쓰는 BYOK)가 바뀌어야 합니다. `<script type="module" src>`는 file://에서 막히므로, 나누더라도 **번들러로 다시 단일 index.html을 만드는 방식**이 먼저입니다(CLAUDE.md 원칙). 이번 작업에서는 파서·프롬프트 빌더를 DOM과 상관없는 순수 함수로 유지해, 나중에 `core/`로 옮기기 쉽게 했습니다.
 - **백엔드(인증, 서버 원장, PG, 이미지 스토리지, 서버 측 buildInput — 4·5장, Phase 4·5)** — 서버가 있어야 합니다. 프론트는 프록시 연결 지점만 마련했습니다. **하트·PLUS·무료 턴은 여전히 데모**라 브라우저에서 조작할 수 있으므로, 실제 결제를 붙이기 전에 서버 원장이 반드시 먼저 있어야 합니다.
-- **이미지 참조 캐싱(8-3)** — Gemini File API 재사용은 키가 있는 서버에서 할 일입니다. 지금은 참고 그림을 축소된 JPEG로 보냅니다.
+- **이미지 참조 캐싱(8-3)** — 이미지 엔진을 Runware(Pony Diffusion V6 XL, 글·태그로만 생성)로 바꾸면서 참고 그림을 보내지 않게 되어 해당 없음. 같은 인물을 더 정확히 맞추려면 나중에 서버 쪽에서 Runware의 이미지 참조 기능(IP-Adapter 등)을 검토.
 - **성인 모드와 무검열 모델 자동 우회(9장)** — **반영하지 않았습니다.** Claude·Gemini가 거절한 요청을 다른 모델로 자동으로 돌리는 구조는 공급자의 안전 정책을 피해 가는 설계이고, 이 프로젝트의 수위 원칙(노골적 묘사 금지, 암전 처리)과도 맞지 않습니다. 성인 등급 서비스를 하려면 실제 본인인증, 법률 검토, 그 용도를 명시적으로 허용하는 공급자 계약이 먼저입니다. 다만 9-3의 하드블록 중 **미성년 인물 차단**은 수위와 상관없이 필요해서 이번에 넣었습니다.
 
 ## 3. 다음 단계(권장 순서)
@@ -39,11 +39,11 @@
 <script>
   window.HEARTVERSE_CONFIG = {
     anthropicUrl: "https://api.example.com/claude",  // Anthropic Messages API와 같은 요청·SSE 응답을 중계
-    geminiBase: "https://api.example.com/gemini",     // {geminiBase}/models/{model}:generateContent 를 중계
+    runwareUrl: "https://api.example.com/runware",    // Runware API(POST, 작업 배열 JSON)를 그대로 중계
     serverKeys: true                                  // 키는 서버가 붙임 → 사용자 키 없이 대화·이미지 생성
   };
 </script>
 ```
 
-- `serverKeys: true`면 키 헤더(`x-api-key`, `x-goog-api-key`)를 보내지 않습니다. 사용자가 키를 넣었다면 그 키를 보냅니다.
-- 프록시는 요청 본문과 응답 형식(Anthropic SSE, Gemini JSON)을 그대로 중계해야 지금 파서가 동작합니다.
+- `serverKeys: true`면 키 헤더(`x-api-key`, `Authorization: Bearer`)를 보내지 않습니다. 사용자가 키를 넣었다면 그 키를 보냅니다.
+- 프록시는 요청 본문과 응답 형식(Anthropic SSE·JSON, Runware JSON)을 그대로 중계해야 지금 파서가 동작합니다. 프록시가 Runware의 `checkNSFW`를 모르면 앱이 그 항목을 빼고 한 번 다시 보냅니다(서버에서 안전 검사를 따로 해야 함).

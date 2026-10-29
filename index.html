@@ -422,10 +422,6 @@ details.stat[open] summary::after { content:"▴"; }
 .warts { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; align-items:start; }
 .warts .pic.land { aspect-ratio:16/9; }
 .warts .pic.cover-pic { aspect-ratio:3/4; }
-.srefs { display:flex; gap:8px; flex-wrap:wrap; }
-.sref { position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:var(--surface2); padding:0; }
-.sref img { width:100%; height:100%; object-fit:cover; display:block; }
-.sref button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:12px; line-height:1; }
 .ssets { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; }
 .sset { border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:6px; background:var(--bg); }
 .sset.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
@@ -433,7 +429,6 @@ details.stat[open] summary::after { content:"▴"; }
 .sset .th span { aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--surface2); }
 .sset .th img { width:100%; height:100%; object-fit:cover; display:block; }
 .sset .note { margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.sref.add { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; border-style:dashed; cursor:pointer; }
 
 /* ── 스토어 */
 .member { border-radius:20px; padding:22px; color:#fbf3e4; background:radial-gradient(90% 120% at 100% 0%, #6b4a17, transparent 60%), linear-gradient(150deg, #241a2e, #120e18); position:relative; overflow:hidden; }
@@ -1038,12 +1033,12 @@ for (const c of ORIGINALS) {
 
 /* ---------------------------------------------------------------- 상수 */
 const MARK = "===STATE===";
-/* 배포 확장 지점: 이 파일보다 먼저 window.HEARTVERSE_CONFIG = { anthropicUrl, geminiBase, serverKeys } 를 넣으면
+/* 배포 확장 지점: 이 파일보다 먼저 window.HEARTVERSE_CONFIG = { anthropicUrl, runwareUrl, serverKeys } 를 넣으면
    API 주소를 서버 프록시로 바꿀 수 있음. serverKeys: true면 사용자 키 없이 호출하고(키는 프록시가 붙임) 키 입력 없이도 대화·이미지 생성이 켜짐 */
-const CFG = Object.assign({ anthropicUrl: "https://api.anthropic.com/v1/messages", geminiBase: "https://generativelanguage.googleapis.com/v1beta", serverKeys: false },
+const CFG = Object.assign({ anthropicUrl: "https://api.anthropic.com/v1/messages", runwareUrl: "https://api.runware.ai/v1", serverKeys: false },
   window.HEARTVERSE_CONFIG && typeof window.HEARTVERSE_CONFIG === "object" ? window.HEARTVERSE_CONFIG : {});
 const hasClaudeKey = () => !!S.settings.apiKey || !!CFG.serverKeys;
-const hasGeminiKey = () => !!S.settings.geminiKey || !!CFG.serverKeys;
+const hasRunwareKey = () => !!S.settings.runwareKey || !!CFG.serverKeys;
 const FREE_DAILY = 10, WELCOME = 30, PLUS_MONTHLY = 300;
 const PLAN = { free: { memTurns: 20, memoMax: 3000, hist: 5, rooms: 3 }, pro: { memTurns: 40, memoMax: 10000, hist: 20, rooms: 99 } };
 const MODELS = {
@@ -1238,13 +1233,14 @@ function shrink(file, max, q, asBlob) {
   });
 }
 
-/* ---------------------------------------------------------------- AI 이미지 생성: 내 Gemini API 키로 직접 호출 */
+/* ---------------------------------------------------------------- AI 이미지 생성: Runware API · Pony Diffusion V6 XL (SDXL, Danbooru 영문 태그 프롬프트)
+   그림체 프리셋은 영문 태그. 한글 설명(출연진 외모·키워드북·직접 쓴 문구)은 보내기 직전 ponyTags()가 영문 태그로 바꿈 */
 /* 그림체 프리셋: 고르면 모든 AI 이미지 프롬프트의 맨 앞(그림체 자리)에 들어감 */
 const IMG_STYLES = {
   none: ["기본 (프롬프트 그대로)", ""],
-  oriental: ["동양 판타지 일러스트", "2D 애니메이션 일러스트, 가늘고 깔끔한 선화, 셀 채색, 흰색·진홍색·금색만 쓰는 제한된 색, 새까만 단색 배경, 붉은 먹으로 그린 듯한 소용돌이 문양과 금빛 나비 장식, 정면 대칭 구도, 섬세한 동양풍 캐릭터 일러스트"],
-  novel: ["웹소설 표지 세미리얼 (2.5D)", "한국 웹소설 표지풍 세미리얼 2.5D 애니 일러스트, 도자기처럼 매끈한 피부와 은은한 홍조, 속눈썹이 긴 크고 또렷한 눈, 윤기 있는 입술, 한 올 한 올 살린 윤기 나는 머리카락, 부드러운 디지털 페인팅 채색, 영화 같은 역광과 림라이트, 보랏빛·푸른빛 네온과 도시 야경 조명, 깊은 명암 대비, 빛망울(보케)로 흐리게 처리한 배경, 고해상도 정밀 묘사"],
-  anime: ["2D 애니 일러스트", "2D 애니메이션 일러스트, 또렷하고 날렵한 선화, 셀 채색에 유리처럼 반짝이는 하이라이트, 진홍·금·청록 같은 선명한 포인트 색과 높은 대비, 새까맣거나 새하얀 배경에 인물을 띄운 구성, 빛 입자와 반짝임·렌즈 플레어, 나비·새·꽃·후광 같은 장식 요소, 결이 살아 있는 긴 머리카락의 흐름, 얼굴 위주의 가까운 상반신 구도, 고해상도"],
+  oriental: ["동양 판타지 일러스트", "flat color, cel shading, thin clean lineart, limited palette, white and crimson and gold, black background, red swirl pattern, golden butterflies, symmetrical composition, korean traditional clothes, oriental fantasy"],
+  novel: ["웹소설 표지 세미리얼 (2.5D)", "semi-realistic, 2.5d, detailed face, porcelain skin, light blush, long eyelashes, glossy lips, shiny detailed hair, soft painterly shading, cinematic lighting, rim lighting, purple and blue neon lights, city lights at night, high contrast, bokeh, depth of field, highly detailed"],
+  anime: ["2D 애니 일러스트", "anime coloring, cel shading, sharp lineart, glossy highlights, vivid accent colors, crimson and gold and teal, high contrast, simple background, light particles, sparkle, lens flare, butterflies, halo, flowing long hair, close-up, upper body"],
   custom: ["직접 입력", ""]
 };
 /* 그림체 세트: 그림 3장 + 그림체 문구 한 묶음(S.settings.styleSets). imgStyle이 "set:<id>"면 세트의 문구와 그림을 씀 */
@@ -1252,9 +1248,6 @@ function activeSet() { const k = String(S.settings.imgStyle || ""); return k.sta
 function styleLabel() { const s = activeSet(); return s ? "세트 · " + s.name : IMG_STYLES[S.settings.imgStyle]?.[0] || IMG_STYLES.none[0]; }
 function imgStyleText() { const k = S.settings.imgStyle, s = activeSet(); return (s ? s.prompt || "" : k === "custom" ? S.settings.imgStyleCustom || "" : IMG_STYLES[k]?.[1] || "").trim(); }
 function styled(fallback) { return imgStyleText() || fallback; }
-/* 그림체 참고 그림: 세트를 쓰면 세트의 3장, 아니면 설정에 따로 올린 최대 3장을 매 생성 요청 앞에 붙여 그림체만 따르게 함 */
-function legacyRefs() { return (S.settings.styleRefs || []).filter(validRef).slice(0, 3); }
-function styleRefs() { const s = activeSet(); return s ? (s.refs || []).filter(validRef).slice(0, 3) : legacyRefs(); }
 function styleOptionsHTML() {
   const cur = S.settings.imgStyle || "none";
   return [...Object.entries(IMG_STYLES).map(([k, [l]]) => [k, l]), ...(S.settings.styleSets || []).map((s) => ["set:" + s.id, "세트 · " + s.name])]
@@ -1301,87 +1294,179 @@ async function unzipImages(file) {
 function guessStylePrompt(name) { return /애니|anime|만화|셀/i.test(name) ? IMG_STYLES.anime[1] : /일상|리얼|세미|표지|2\.5/i.test(name) ? IMG_STYLES.novel[1] : ""; }
 /* 표지 프롬프트: 세계관 작품은 히로인들이 모인 단체 표지, 1인 작품은 주인공 중심 */
 function coverPrompt(c) {
-  const cast = (c.cast || []).filter((x) => x.name), head = `${styled("웹소설 표지풍 일러스트")}${c.title ? `, 작품 「${c.title}」의 표지` : ""}${c.oneLiner ? `. ${c.oneLiner}` : ""}`;
-  if (c.world_mode && cast.length > 1) return `${head}. ${cast.slice(0, 5).map((x) => `${x.name}(${x.look || "인물"})`).join(", ")}이 한 화면에 모인 단체 구도 — 가운데 인물이 가장 앞에 서고 나머지는 뒤로 층을 이룬다. 세계관이 드러나는 배경, 세로 3:4 구도, 글자와 로고 없이`;
-  return `${head}. 주인공 ${cast[0]?.look || c.name || "캐릭터"}, 인물 중심 상반신, 세계관이 드러나는 배경, 세로 3:4 구도, 글자와 로고 없이`;
+  const cast = (c.cast || []).filter((x) => x.name), base = [styled(""), "cover art, cinematic composition"];
+  if (c.world_mode && cast.length > 1) {
+    const f = cast.filter((x) => /여성|여자|\bfemale\b|\bgirl/i.test(x.look || "")).length, m = cast.filter((x) => /남성|남자|\bmale\b|\bboy/i.test(x.look || "")).length;
+    const who = [f ? (f > 1 ? `${Math.min(f, 6)}girls` : "1girl") : "", m ? (m > 1 ? `${Math.min(m, 6)}boys` : "1boy") : ""].filter(Boolean).join(", ") || "multiple characters";
+    return [...base, who, "group shot, center character in front, others layered behind", ...cast.slice(0, 5).map((x) => x.look), c.oneLiner, "detailed background"].filter(Boolean).join(", ");
+  }
+  return [...base, castLook(cast[0], c) || "1girl", "solo, upper body, looking at viewer", c.oneLiner, "detailed background"].filter(Boolean).join(", ");
 }
-const IMG_MODELS = [["gemini-2.5-flash-image", "Gemini 2.5 Flash Image (빠름)"], ["gemini-3-pro-image-preview", "Gemini 3 Pro Image (고품질)"]];
-async function refToPart(ref) {
+const IMG_MODELS = [["civitai:257259@290640", "Pony Diffusion V6 XL"]];
+const RW_SIZES = { "4:5": [832, 1216], "3:4": [832, 1216], "1:1": [1024, 1024], "16:9": [1216, 832] };
+const PONY_POS = "score_9, score_8_up, score_7_up, source_anime, rating_safe, masterpiece";
+// 등장인물은 모두 성인·노출 없는 그림만(CLAUDE.md 수위 원칙): 성적·미성년 태그를 네거티브에 고정
+const PONY_NEG = "score_4, score_5, score_6, source_pony, text, watermark, signature, logo, deformed, bad anatomy, bad hands, missing fingers, extra digits, blurry, low quality, nsfw, nude, explicit, rating_explicit, rating_questionable, child, loli, shota";
+/* 상황 번호(SIT 0~14) → Pony 표정·자세 태그 */
+const SIT_PONY_TAGS = [
+  "portrait, upper body, looking at viewer, face focus",            // 0 프로필
+  "neutral expression, upper body, looking at viewer",              // 1 기본
+  "smile, happy, laughing, expressive eyes",                        // 2 웃음
+  "blushing, embarrassed, shy, looking down, flustered",            // 3 부끄러움
+  "crying, tears, sad, heartbreak, distressed face",                // 4 슬픔
+  "surprised, wide eyes, open mouth, shocked, gasping",             // 5 놀람
+  "angry, furious, clenched teeth, glaring, furrowed brow",         // 6 분노
+  "pouting, annoyed, looking away, cheeks puffed, crossed arms",    // 7 삐침
+  "scared, terrified, pale, trembling, wide eyes, fear",            // 8 공포
+  "injured, bandage, wounded, blood on skin, exhausted, ragged",    // 9 부상
+  "relief, gentle smile, magical glow, sparkling, recovered",       // 10 회복
+  "sleeping, eyes closed, resting, lying down, peaceful",           // 11 휴식
+  "fighting stance, battle ready, intense eyes, weapon, dynamic",   // 12 공격
+  "glowing eyes, power aura, magical energy, floating hair, epic",  // 13 각성
+  "heart eyes, romantic blush, loving gaze, gentle smile"           // 14 설렘
+];
+/* 출연진 외모가 비었을 때: 캐릭터 설정의 "이름(나이, 성별)"과 "외모:" 부분으로 대신(성별이 틀린 1girl 기본값 방지) */
+function personaWho(c) { const w = String(c?.persona || "").match(/\((\d{1,2})\s*,\s*([남여])\)/); return w ? `${w[1]}세 ${w[2] === "남" ? "남성" : "여성"}` : ""; }
+function personaLook(c) {
+  const look = (String(c?.persona || "").match(/외모\s*[:：]\s*([^\n]+)/) || [])[1] || "";
+  return [personaWho(c), look.trim().replace(/[.。]\s*$/, "")].filter(Boolean).join(", ");
+}
+/* 인물 외모 태그 자리: 출연진 외모 → 비었으면 설정의 외모. 주인공(c) 외모에 성별이 없으면 설정의 "나이 성별"을 앞에 붙임 */
+function castLook(cast, c) {
+  const l = String(cast?.look || "").trim();
+  if (!l) return personaLook(c);
+  const who = cast.code === "c" && !/남성|여성|남자|여자|\b(?:male|female|girl|boy|man|woman)\b/i.test(l) ? personaWho(c) : "";
+  return [who, l].filter(Boolean).join(", ");
+}
+function buildPonyPrompt(cast, i, c) { return [styled(""), castLook(cast, c) || "1girl", "solo", SIT_PONY_TAGS[i] || SIT_PONY_TAGS[1], i === 0 ? "simple background" : "detailed background"].filter(Boolean).join(", "); }
+const hasHangul = (t) => /[가-힣]/.test(t);
+/* 프롬프트 → Pony용 영문 태그. 영문 태그 조각은 그대로 두고, 한글이 든 조각만(이어진 것끼리 묶어) koTags()로 번역 */
+async function ponyTags(text) {
+  const t = String(text || "").trim();
+  if (!t || !hasHangul(t)) return t;
+  const out = []; let buf = [];
+  const flush = async () => { if (buf.length) { out.push(await koTags(buf.join(", "))); buf = []; } };
+  for (const part of t.split(/\s*,\s*/).filter(Boolean)) { if (hasHangul(part)) buf.push(part); else { await flush(); out.push(part); } }
+  await flush();
+  return out.filter(Boolean).join(", ");
+}
+/* 한글 설명 → 영문 Danbooru 태그(Claude로 번역, TAGS에 캐시해 같은 글은 한 번만). 대화 AI 연결이 없거나 실패하면 한글 낱말만 빼고 보냄 */
+let TAGS = {};
+async function koTags(t) {
+  if (TAGS[t]) return TAGS[t];
+  const strip = () => t.replace(/[^\s,]*[가-힣][^\s,]*/g, " ").split(",").map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
+  try { await waitEngine(); } catch {}
+  if (S.engine === "none") return strip();
   try {
-    let data = ref;
-    if (ref.startsWith("kv:")) data = await IMG.load(ref.slice(3));
-    else if (ref.startsWith("/_blob/")) { const b = await (await fetch(ref)).blob(); data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); }); }
-    const m = typeof data === "string" && data.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-    return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
+    const out = await llm([{ role: "user", content: `다음 그림 설명을 Pony Diffusion V6 XL(SDXL)용 영문 Danbooru 태그로 바꿔라.
+- 영문 소문자 태그를 쉼표로만 이어 한 줄로 출력한다. 설명·따옴표·번호 없이 태그만.
+- 원문 순서를 따른다.
+- 인물은 모두 성인이다(인물이 있으면 adult 를 넣는다). 노출·성적 표현 태그는 넣지 않는다.
+- 고유명사(작품·인물·장소 이름)는 빼고 외모·의상·표정·자세·장소·조명·분위기만 남긴다.
+
+${t}` }], { tier: "quick", maxTokens: 500 });
+    const tags = String(out || "").replace(/\n+/g, ", ").replace(/["'`]/g, "").replace(/\s+/g, " ").replace(/(,\s*)+/g, ", ").replace(/^,\s*|,\s*$/g, "").trim().slice(0, 1200);
+    if (!tags || hasHangul(tags)) return strip();
+    TAGS[t] = tags;
+    const keys = Object.keys(TAGS); if (keys.length > 300) keys.slice(0, keys.length - 300).forEach((k) => delete TAGS[k]);
+    KV.set("ponytags", TAGS);
+    return tags;
+  } catch { return strip(); }
+}
+function uuid4() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+/* Runware 이미지 생성 → Blob (IMG.put에 그대로 넣을 수 있음). 그림은 dataURI로 받아 두 번째 요청·CORS 문제를 피하고, URL로 오면 내려받음 */
+async function runwareImage(prompt, { aspect = "4:5", signal } = {}) {
+  if (!hasRunwareKey()) throw { code: "no_key" };
+  const tags = await ponyTags(prompt);
+  const [width, height] = RW_SIZES[aspect] || RW_SIZES["4:5"];
+  const task = { taskType: "imageInference", taskUUID: uuid4(), positivePrompt: `${PONY_POS}, ${tags}`.slice(0, 2900), negativePrompt: PONY_NEG,
+    model: S.settings.imgModel || IMG_MODELS[0][0], width, height, numberResults: 1, steps: 28, CFGScale: 7.0, scheduler: "EulerAncestralDiscreteScheduler",
+    outputFormat: "WEBP", outputType: "dataURI", checkNSFW: true };
+  let j, res;
+  for (let tries = 0; tries < 2; tries++) {
+    try {
+      res = await fetch(CFG.runwareUrl, { method: "POST", signal, headers: { "content-type": "application/json", ...(S.settings.runwareKey ? { authorization: "Bearer " + S.settings.runwareKey } : {}) }, body: JSON.stringify([task]) });
+    } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network" }; }
+    j = await res.json().catch(() => ({}));
+    const err = (Array.isArray(j.errors) ? j.errors : j.error ? [j.error] : [])[0];
+    const msg = err ? String([err.code, err.message, err.parameter].filter(Boolean).join(" ")) : "";
+    // checkNSFW를 모르는 엔드포인트(프록시 등)면 한 번만 빼고 다시
+    if (err && /checkNSFW/i.test(msg) && tries === 0) { delete task.checkNSFW; continue; }
+    if (!res.ok || err) {
+      throw { code: res.status === 401 || res.status === 403 || /api.?key|auth/i.test(msg) ? "bad_key" : res.status === 402 || /credit|fund|balance|insufficient/i.test(msg) ? "no_funds"
+        : res.status === 429 ? "rate_limited" : /model/i.test(msg) ? "bad_model" : "upstream_error", msg };
+    }
+    break;
+  }
+  const d = (j.data || []).find((x) => x && x.taskType === "imageInference") || (j.data || [])[0];
+  if (!d) throw { code: "upstream_error", msg: "빈 응답" };
+  if (d.NSFWContent) throw { code: "blocked" };
+  try {
+    if (d.imageDataURI || d.imageBase64Data) return await (await fetch(d.imageDataURI || `data:image/webp;base64,${d.imageBase64Data}`)).blob();
+    if (d.imageURL) return await (await fetch(d.imageURL, { signal })).blob();
+  } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "image_fetch" }; }
+  throw { code: "upstream_error", msg: "그림 없음" };
+}
+/* 그림 참조(kv:·/_blob/·data:) → data URL */
+async function refDataURL(ref) {
+  try {
+    if (ref.startsWith("kv:")) return await IMG.load(ref.slice(3));
+    if (ref.startsWith("/_blob/")) { const b = await (await fetch(ref)).blob(); return await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); }); }
+    return validRef(ref) ? ref : null;
   } catch { return null; }
 }
-async function geminiPost(model, body, signal) {
-  if (!hasGeminiKey()) throw { code: "no_key" };
+/* 그림체 세트 그림을 Claude(Anthropic API 키·서버 프록시)에게 보여 주고 공통 화풍만 Pony용 영문 태그로 받아옴 */
+async function claudeStyleTags(refs) {
+  if (!hasClaudeKey()) throw { code: "no_claude" };
+  const content = [];
+  for (const r of refs) {
+    const d = validRef(r) && await refDataURL(r), m = typeof d === "string" && d.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/);
+    if (m) content.push({ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } });
+  }
+  if (!content.length) throw { code: "upstream_error", msg: "그림 없음" };
+  content.push({ type: "text", text: `위 ${content.length}장은 한 그림체 세트다. Pony Diffusion V6 XL(SDXL)에 넣을 '그림체 태그'를 영문 Danbooru 태그로 써라.
+- ${content.length}장에 공통된 화풍만: 선, 채색 방식, 명암·하이라이트, 조명, 색감·팔레트, 질감, 배경 처리, 효과, 자주 쓰는 구도
+- 인물의 신체 특징·노출·성적 요소, 인물·작품·작가·서비스 이름, 그림 속 글자는 쓰지 않는다. score_·rating_·source_ 태그도 쓰지 않는다
+- 소문자 태그 12~20개를 쉼표로만 이어 한 줄로. 설명 없이 태그만` });
   let res;
   try {
-    res = await fetch(`${CFG.geminiBase}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST", signal, headers: { "content-type": "application/json", ...(S.settings.geminiKey ? { "x-goog-api-key": S.settings.geminiKey } : {}) }, body: JSON.stringify(body)
-    });
-  } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network" }; }
+    res = await fetch(CFG.anthropicUrl, { method: "POST", headers: { "content-type": "application/json", "anthropic-version": "2023-06-01", ...(S.settings.apiKey ? { "x-api-key": S.settings.apiKey, "anthropic-dangerous-direct-browser-access": "true" } : {}) },
+      body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 400, messages: [{ role: "user", content }] }) });
+  } catch { throw { code: "network" }; }
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = j.error?.message || "";
-    throw { code: res.status === 429 ? "rate_limited" : (res.status === 401 || res.status === 403 || /api.?key/i.test(msg)) ? "bad_key" : res.status === 404 ? "bad_model" : "upstream_error", msg };
-  }
-  return j;
-}
-/* 세트의 그림들을 Gemini에 보여 주고 공통 그림체만 이미지 생성용 문구로 받아옴 */
-const STYLE_READ_MODEL = "gemini-2.5-flash";
-async function geminiStylePrompt(refs) {
-  const parts = [];
-  for (const r of refs) { const p = validRef(r) && await refToPart(r); if (p) parts.push(p); }
-  if (!parts.length) throw { code: "upstream_error", msg: "그림 없음" };
-  parts.push({ text: `위 ${parts.length}장은 한 그림체 세트다. 이미지 생성 AI에 그대로 넣을 '그림체 문구'를 한국어로 한 문단 써라.
-- ${parts.length}장에 공통된 화풍만 쓴다: 선의 굵기와 정리, 채색 방식(셀·페인팅·수채 등), 명암과 하이라이트, 조명, 색감과 팔레트, 질감, 배경 처리, 효과(빛망울·입자·문양 등), 자주 쓰는 구도
-- 인물의 신체 특징·노출·의상 노출 정도, 특정 인물·작품·작가·서비스 이름, 그림 속 글자는 쓰지 않는다
-- 쉼표로 이은 명사구 10~16개, 150~260자. 따옴표나 설명 없이 문구만 출력한다` });
-  const j = await geminiPost(STYLE_READ_MODEL, { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.4 } });
-  const text = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("").replace(/^["'「“]+|["'」”]+$/g, "").replace(/\s+/g, " ").trim();
-  if (!text) throw { code: "blocked", msg: j.promptFeedback?.blockReason || "" };
-  return text.slice(0, 500);
-}
-async function geminiImage(prompt, { aspect = "4:5", refs = [], signal, style = true } = {}) {
-  if (!hasGeminiKey()) throw { code: "no_key" };
-  const parts = [];
-  let sN = 0, cN = 0;
-  if (style) for (const r of styleRefs()) { const p = await refToPart(r); if (p) { parts.push(p); sN++; } }
-  for (const r of refs) { const p = validRef(r) && await refToPart(r); if (p) { parts.push(p); cN++; } }
-  const guide = (sN ? `[그림체 참고] 앞의 ${sN}장은 그림체 참고용이다. 선·채색·명암·조명·색감, 얼굴과 머리카락을 그리는 방식만 따른다. 그 그림 속 인물·의상·구도·배경·노출 정도·글자는 따라 하지 않는다.\n` : "") +
-    (cN ? `[인물 참고] ${sN ? "이어지는" : "앞의"} ${cN}장 속 인물과 같은 얼굴·머리 모양·체형으로 그린다.\n` : "");
-  parts.push({ text: guide + prompt });
-  const j = await geminiPost(S.settings.imgModel || IMG_MODELS[0][0], { contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: aspect } } }, signal);
-  const cand = j.candidates?.[0], img = cand?.content?.parts?.find((p) => p.inlineData?.data);
-  if (!img) throw { code: "blocked", msg: j.promptFeedback?.blockReason || cand?.finishReason || "" };
-  const bin = atob(img.inlineData.data), u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return new Blob([u8], { type: img.inlineData.mimeType || "image/png" });
+  if (!res.ok) throw { code: res.status === 401 || res.status === 403 ? "bad_claude" : res.status === 429 ? "rate_limited" : "upstream_error", msg: j.error?.message || "" };
+  const text = (j.content || []).map((x) => x.text || "").join("").replace(/\n+/g, ", ").replace(/["'`]/g, "").replace(/\s+/g, " ").trim();
+  if (!text) throw { code: "blocked" };
+  return text.slice(0, 600);
 }
 function genErr(e) {
   return {
-    no_key: "설정에서 Gemini API 키를 먼저 넣어 주세요.",
-    bad_key: "Gemini API 키가 올바르지 않거나 권한이 없어요.",
-    bad_model: "Gemini 모델을 찾을 수 없어요. 설정에서 다른 이미지 모델을 고르거나 잠시 뒤 다시 시도해 주세요.",
+    no_key: "설정에서 Runware API 키를 먼저 넣어 주세요.",
+    bad_key: "Runware API 키가 올바르지 않거나 권한이 없어요.",
+    no_funds: "Runware 크레딧이 부족해요. Runware 대시보드(runware.ai)에서 충전해 주세요.",
+    bad_model: "이미지 모델을 찾을 수 없어요. 설정에서 이미지 모델을 확인해 주세요.",
     rate_limited: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.",
-    blocked: "안전 정책 때문에 이미지가 만들어지지 않았어요. 프롬프트를 바꿔 보세요.",
-    network: window.claude?.use ? "claude.ai 안에서는 외부 API 호출이 막혀 Gemini를 부를 수 없어요. 파일로 열어서 써 주세요." : "Gemini에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.",
+    blocked: "안전 필터에 걸려 이 그림은 쓰지 않았어요. 프롬프트를 바꿔 보세요.",
+    image_fetch: "만든 그림을 내려받지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+    no_claude: "그림을 읽어 태그를 쓰려면 Anthropic API 키(또는 서버 연결)가 필요해요.",
+    bad_claude: "Anthropic API 키가 올바르지 않거나 권한이 없어요.",
+    network: window.claude?.use ? "claude.ai 안에서는 외부 API 호출이 막혀 Runware를 부를 수 없어요. 파일로 열어서 써 주세요." : "Runware에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.",
     cancelled: "생성을 취소했어요."
   }[e?.code] || "이미지를 만들지 못했어요." + (e?.msg ? ` (${String(e.msg).slice(0, 120)})` : "");
 }
 /* 다른 시트 위에 겹쳐 뜨는 생성 창. onUse(blob)가 끝나면 닫혀요 */
-function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspect = "4:5", refs = [], onUse }) {
-  refs = refs.filter(validRef);
+function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspect = "4:5", onUse }) {
   const model = (IMG_MODELS.find((m) => m[0] === S.settings.imgModel) || [0, S.settings.imgModel])[1];
   const ov = document.createElement("div"); ov.className = "overlay gen-ov";
   ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
-    <div class="field" style="margin-top:0"><label for="gp">프롬프트</label><textarea id="gp" maxlength="2000" style="min-height:110px">${esc(prompt)}</textarea></div>
-    ${refs.length ? `<div class="toggle" style="margin-top:10px"><label for="gref">등록된 이미지를 참고해서 같은 인물로 그리기</label><input type="checkbox" id="gref" checked></div>` : ""}
-    ${styleRefs().length ? `<div class="toggle" style="margin-top:10px"><label for="gsr">그림체 참고 그림 ${styleRefs().length}장 함께 보내기</label><input type="checkbox" id="gsr" checked></div>` : ""}
-    <div class="gen-pv" id="gpv"><span class="note">${hasGeminiKey() ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(styleLabel())}${styleRefs().length ? ` · 참고 그림 ${styleRefs().length}장` : ""}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
+    <div class="field" style="margin-top:0"><label for="gp">프롬프트 (영문 태그 또는 한글 설명)</label><textarea id="gp" maxlength="2000" style="min-height:110px" placeholder="score_9, 1girl, solo, long hair, smile, … 처럼 영문 태그로 써도 되고 한글로 설명해도 돼요">${esc(prompt)}</textarea></div>
+    <p class="note" style="margin:6px 0 0">한글은 만들기 직전에 영문 태그로 바꿔 보내요${S.engine === "none" ? " — 지금은 Claude 연결이 없어 한글 부분은 빼고 보내요" : ""}. 품질 태그(score_9 …)와 금지 태그는 자동으로 붙어요.</p>
+    <div class="gen-pv" id="gpv"><span class="note">${hasRunwareKey() ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(styleLabel())}` : "설정에서 Runware API 키를 먼저 넣어 주세요."}</span></div>
     <div class="cta-row"><button class="btn ghost" data-x>닫기</button><span class="spacer"></span><button class="btn" id="gmk">생성</button><button class="btn pri" id="guse" disabled>이 이미지 쓰기</button></div></div>`;
   document.body.append(ov);
   let blob = null, url = "", ctl = null;
@@ -1392,7 +1477,7 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
     const p = $("#gp", ov).value.trim(); if (!p) { $("#gp", ov).focus(); return; }
     mk.disabled = use.disabled = true; pv.innerHTML = `<span class="note">만드는 중… 10~30초쯤 걸려요</span>`; ctl = new AbortController();
     try {
-      blob = await geminiImage(p, { aspect, refs: $("#gref", ov)?.checked ? refs : [], signal: ctl.signal, style: $("#gsr", ov)?.checked ?? true });
+      blob = await runwareImage(p, { aspect, signal: ctl.signal });
       url && URL.revokeObjectURL(url); url = URL.createObjectURL(blob);
       pv.innerHTML = `<img src="${url}" alt="생성된 이미지">`; use.disabled = false; mk.textContent = "다시 생성";
     } catch (e) { if (!ov.isConnected) return; blob = null; pv.innerHTML = `<span class="note">${esc(genErr(e))}</span>`; }
@@ -1402,7 +1487,7 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
     if (!blob) return; use.disabled = true; toast("저장하는 중…");
     try { await onUse(blob); close(); } catch { use.disabled = false; toast("이미지를 저장하지 못했어요."); }
   };
-  if (hasGeminiKey()) $("#gp", ov).focus();
+  if (hasRunwareKey()) $("#gp", ov).focus();
   return ov;
 }
 
@@ -1411,7 +1496,7 @@ const S = {
   wallet: { hearts: 0, freeDay: today(), freeUsed: 0, pro: null, history: [], ledger: [], ack: {} },
   personas: [{ id: "p1", name: "유저", memo: "", desc: "", img: "", def: true }],
   profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {}, coverpacks: {}, lorepacks: {},
-  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", imgStyle: "novel", imgStyleCustom: "", styleRefs: [], styleSets: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
+  settings: { fs: 15.5, theme: "system", apiKey: "", runwareKey: "", imgModel: "civitai:257259@290640", imgStyle: "novel", imgStyleCustom: "", styleRefs: [], styleSets: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
   engine: "pending", cat: "전체", q: ""
 };
 let SAMPLE = null, samplePromise = null, DB = null, DOWNLOADS = null;
@@ -2655,8 +2740,7 @@ function openImageSlots(c, code) {
   const store = () => mine ? (mine.images ||= {}) : (S.imgpacks[c.id] ||= {});
   const persist = () => { if (mine) { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); } else KV.set("imgpacks", S.imgpacks); };
   const put = async (file, sit, code = cur) => { const ref = await IMG.put(file); const m = store()[code] || {}; IMG.drop(m[sit]); m[sit] = ref; store()[code] = m; };
-  const prompt = (cast, i) => `${styled("웹툰풍 캐릭터 일러스트")}, ${cast.look || cast.name}, ${SIT[i]} 표정과 자세, 상반신, 세로 4:5 구도, 「${c.title}」 분위기의 배경`;
-  const refsFor = (code, i) => { const s = imagesOf(c)[code] || {}; return [0, 1].filter((k) => k !== i && validRef(s[k])).slice(0, 1).map((k) => s[k]); };
+  const prompt = (cast, i) => buildPonyPrompt(cast, i, c);
   let live = null, bulk = null;
   const paint = () => {
     const cast = c.cast.find((x) => x.code === cur), slots = imagesOf(c)[cur] || {};
@@ -2666,7 +2750,7 @@ function openImageSlots(c, code) {
       <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><span class="note">파일 이름을 '2.png'나 '${esc(cur)}_2.png'처럼 번호로 지으면 그 칸에 자동으로 들어가요.</span></div>
       <div class="slot-grid">${SIT.map((s, i) => { const ref = validRef(slots[i]) ? slots[i] : null; return `<div class="slot"><div class="pic${bulk && bulk.code === cur && bulk.at === i ? " busy" : ""}">${ref ? IMG.tag(ref) : artHTML(c, cast, i)}</div><span class="lb">${i} ${s}${i === 0 ? " <small>첫 등장</small>" : ""}</span><div class="bs"><button data-up="${i}">${ref ? "바꾸기" : "올리기"}</button><button data-ai="${i}">AI</button>${ref ? `<button data-rm="${i}">삭제</button>` : ""}</div></div>`; }).join("")}</div>
       <input type="file" id="one" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="many" accept="image/png,image/jpeg,image/webp" multiple hidden>
-      <p class="note" style="margin-top:12px">${IMG.assets ? "이미지는 이 아티팩트의 저장소에 올라가요." : "이미지는 압축해서 내 저장 공간에 보관해요."} 외부 이미지 주소는 보안 정책상 불러올 수 없어서 파일로 올려 주세요. AI 버튼은 설정의 Gemini API 키로 이미지를 만들어요. 프로필·기본 이미지가 있으면 그걸 참고해서 같은 인물로 그려요.</p>`, "wide");
+      <p class="note" style="margin-top:12px">${IMG.assets ? "이미지는 이 아티팩트의 저장소에 올라가요." : "이미지는 압축해서 내 저장 공간에 보관해요."} 외부 이미지 주소는 보안 정책상 불러올 수 없어서 파일로 올려 주세요. AI 버튼은 설정의 Runware API 키로 Pony Diffusion 그림을 만들어요. 같은 인물로 그리려면 작품의 '이미지 출연진' 외모 설명을 자세히 적어 주세요(외모 설명이 태그로 바뀌어 매번 들어가요).</p>`, "wide");
     live = ov; IMG.hydrate(ov);
     $$("[data-cc]", ov).forEach((b) => b.onclick = () => { cur = b.dataset.cc; paint(); });
     let target = 0;
@@ -2674,20 +2758,20 @@ function openImageSlots(c, code) {
     $$("[data-rm]", ov).forEach((b) => b.onclick = () => { const m = store()[cur] || {}; IMG.drop(m[b.dataset.rm]); delete m[b.dataset.rm]; store()[cur] = m; persist(); paint(); });
     $$("[data-ai]", ov).forEach((b) => b.onclick = () => {
       const i = +b.dataset.ai, code = cur;
-      genImageSheet({ title: `${cast.name} · ${i} ${SIT[i]}`, prompt: prompt(cast, i), aspect: "4:5", refs: refsFor(code, i),
+      genImageSheet({ title: `${cast.name} · ${i} ${SIT[i]}`, prompt: prompt(cast, i), aspect: "4:5",
         onUse: async (blob) => { await put(blob, i, code); persist(); if (live?.isConnected) paint(); toast("이미지를 등록했어요"); } });
     });
     $("#aiAll", ov).onclick = async () => {
       if (bulk) { bulk.stop = true; return; }
-      if (!hasGeminiKey()) { toast(genErr({ code: "no_key" })); return; }
+      if (!hasRunwareKey()) { toast(genErr({ code: "no_key" })); return; }
       const code = cur, ca = cast, todo = SIT.map((_, i) => i).filter((i) => !validRef((imagesOf(c)[code] || {})[i]));
       if (!todo.length) { toast("빈 칸이 없어요"); return; }
       bulk = { code, at: -1, stop: false }; let ok = 0, err = null;
       for (const i of todo) {
         if (bulk.stop) break;
         bulk.at = i; if (live?.isConnected) paint(); toast(`AI로 채우는 중… ${ok + 1}/${todo.length}`);
-        try { await put(await geminiImage(prompt(ca, i), { aspect: "4:5", refs: refsFor(code, i) }), i, code); persist(); ok++; }
-        catch (e) { err = e; if (["no_key", "bad_key", "bad_model", "network", "rate_limited"].includes(e?.code)) break; }
+        try { await put(await runwareImage(prompt(ca, i), { aspect: "4:5" }), i, code); persist(); ok++; }
+        catch (e) { err = e; if (["no_key", "bad_key", "no_funds", "bad_model", "network", "rate_limited"].includes(e?.code)) break; }
       }
       const stopped = bulk.stop; bulk = null; if (live?.isConnected) paint();
       toast(`${ok}장 만들었어요${stopped ? " (멈춤)" : err ? ` · ${genErr(err)}` : ""}`);
@@ -2712,7 +2796,7 @@ function openImageSlots(c, code) {
 /* ---------------------------------------------------------------- 세계관 일러스트: 대표 일러스트(표지) + 키워드북 항목별 그림.
    내 작품은 작품(img·loreImages)에, 그 밖의 작품은 내 계정(coverpacks·lorepacks)에 저장 */
 function loreImg(c, key) { const live = getChar(c.id) || c; return (S.lorepacks[c.id] || {})[key] || (live.loreImages || {})[key] || ""; }
-function lorePrompt(c, e) { return `${styled("세계관 일러스트")}, 「${c.title}」의 세계관 일러스트 — ${e.keys[0]}: ${e.text} 장소와 분위기가 잘 드러나는 장면, 인물이 나오면 작게, 가로 16:9 구도, 글자와 로고 없이`; }
+function lorePrompt(c, e) { return [styled(""), "scenery, wide shot, detailed background, atmospheric lighting, no text", e.text].filter(Boolean).join(", "); }
 function pubLore(m) { const out = {}; for (const [k, ref] of Object.entries(m || {}).slice(0, 40)) if (typeof ref === "string" && ref.startsWith("/_blob/") && validRef(ref)) out[String(k).slice(0, 20)] = ref; return out; }
 function worldArtHTML(c) {
   const lore = (getChar(c.id) || c).lore || [];
@@ -2740,7 +2824,7 @@ function openWorldArt(c) {
     const cov = getCover() || "";
     const btns = (key, has) => `<div class="bs"><button data-wup="${esc(key)}">${has ? "바꾸기" : "올리기"}</button><button data-wai="${esc(key)}">AI</button>${has ? `<button data-wrm="${esc(key)}">삭제</button>` : ""}</div>`;
     const ov = sheet(`<div class="sheet-head"><h2>세계관 일러스트</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
-      <p class="sub">대표 일러스트는 표지·카드·대화방에, 항목 그림은 작품 소개의 세계관 일러스트에 보여요. AI는 설정의 그림체 프리셋과 참고 그림을 따라요.${mine ? "" : " 이 작품의 그림은 내 계정에만 저장돼요."}</p>
+      <p class="sub">대표 일러스트는 표지·카드·대화방에, 항목 그림은 작품 소개의 세계관 일러스트에 보여요. AI(Runware · Pony Diffusion)는 설정의 그림체 프리셋을 따라요.${mine ? "" : " 이 작품의 그림은 내 계정에만 저장돼요."}</p>
       <div class="warts">
         <div class="slot"><div class="pic cover-pic">${cov ? IMG.tag(cov) : `<div class="wpic ph">표지</div>`}</div><span class="lb">대표 일러스트 <small>3:4</small></span>${btns("__cover", !!cov)}</div>
         ${lore.map((e) => { const ref = loreImg(c, e.keys[0]); return `<div class="slot"><div class="pic land">${ref ? IMG.tag(ref) : `<div class="wpic ph">${esc(e.keys[0])}</div>`}</div><span class="lb">${esc(e.keys[0])} <small>16:9</small></span>${btns(e.keys[0], !!ref)}</div>`; }).join("")}
@@ -2869,9 +2953,8 @@ function viewStudio(id) {
   const add = $("#opAdd"); if (add) add.onclick = () => { collect(); d.openings.push({ title: "", text: "", directive: "", status: {} }); viewStudio(id); };
   const imgDel = $("#imgDel"); if (imgDel) imgDel.onclick = () => { collect(); d.img = ""; viewStudio(id); };
   $("#imgAi").onclick = () => {
-    collect(); const lead = d.cast?.[0] || {}, s = (d.images || {})[lead.code] || {};
-    genImageSheet({ title: "AI로 표지 만들기", aspect: "3:4", refs: [s[0], s[1]].filter(validRef).slice(0, 1),
-      prompt: coverPrompt(d),
+    collect();
+    genImageSheet({ title: "AI로 표지 만들기", aspect: "3:4", prompt: coverPrompt(d),
       onUse: async (blob) => { collect(); d.img = await IMG.put(blob); viewStudio(id); toast("표지 이미지를 넣었어요"); } });
   };
   const sl = $("#slots"); if (sl) sl.onclick = () => { const m = S.mine.find((x) => x.id === d.id); if (m) openImageSlots(m); };
@@ -3121,19 +3204,16 @@ function viewMe() {
       </div>
       <div class="field"><label for="key">Anthropic API 키 (파일로 열었을 때만 필요)</label><input id="key" type="password" autocomplete="off" placeholder="sk-ant-..." value="${esc(S.settings.apiKey)}"></div>
       <div class="two">
-        <div class="field"><label for="gkey">Gemini API 키 (AI 이미지 생성 · 파일로 열었을 때)</label><input id="gkey" type="password" autocomplete="off" placeholder="AIza..." value="${esc(S.settings.geminiKey)}"></div>
+        <div class="field"><label for="rkey">Runware API 키 (AI 이미지 생성 · 파일로 열었을 때)</label><input id="rkey" type="password" autocomplete="off" placeholder="Runware API 키" value="${esc(S.settings.runwareKey || "")}"></div>
         <div class="field"><label for="gmodel">이미지 모델</label><select id="gmodel">${[...IMG_MODELS, ...(IMG_MODELS.some((m) => m[0] === S.settings.imgModel) ? [] : [[S.settings.imgModel, S.settings.imgModel]])].map(([k, l]) => `<option value="${esc(k)}" ${S.settings.imgModel === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
       </div>
       <div class="field"><label for="gstyle">그림체 프리셋</label><select id="gstyle">${styleOptionsHTML()}</select></div>
       <div class="field" id="gstyleBox" ${(S.settings.imgStyle || "none") === "none" ? "hidden" : ""}><label for="gstyleTxt">그림체 문구 — 슬롯·표지·페르소나의 AI 프롬프트 맨 앞에 들어가요. 프리셋 문구를 고치면 '직접 입력'으로, 세트를 고른 상태면 그 세트 문구가 바로 고쳐져요.</label><textarea id="gstyleTxt" maxlength="600" style="min-height:76px">${esc(imgStyleText())}</textarea></div>
-      <div class="field"><span class="lbl">그림체 세트 — 그림 3장과 그림체 문구를 한 묶음으로. 고르면 참고 그림과 문구가 함께 적용돼요</span>
+      <div class="field"><span class="lbl">그림체 세트 — 그림 3장에서 뽑은 그림체 태그를 한 묶음으로. 고르면 그 태그가 모든 AI 그림에 들어가요</span>
         <div class="ssets" id="ssets"></div><input type="file" id="ssetFile" accept="image/png,image/jpeg,image/webp,.zip,application/zip" multiple hidden>
         <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="ssetAdd" type="button">+ 세트 가져오기 (그림 여러 장 또는 ZIP)</button></div>
-        <p class="note" style="margin:4px 0 0">파일 이름 앞부분이 같은 것끼리(예: 프롬1_…, 프롬2_…) 3장씩 묶고, 앞부분이 모두 다르면 이름 순서대로 3장씩 묶어요. Gemini 키가 있으면 세트마다 공통 그림체를 읽어 문구를 자동으로 써요(인물·노출·글자는 빼고). 바로 저장되고 이 브라우저에만 남아요.</p></div>
-      <div class="field"><span class="lbl">프리셋과 함께 쓸 참고 그림 (최대 3장) — 세트를 고르면 세트 그림이 대신 쓰여요</span>
-        <div class="srefs" id="srefs"></div><input type="file" id="srefFile" accept="image/png,image/jpeg,image/webp" multiple hidden>
-        <p class="note" style="margin:4px 0 0">선·채색·조명 같은 그림체만 참고하고 인물·구도·노출은 따라 하지 않게 지시해요. 다른 서비스나 작가의 그림보다 직접 만든 그림을 넣는 걸 권해요. 바로 저장되고 이 브라우저에만 남아요.</p></div>
-      <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="gtest">이미지 생성 테스트</button><span class="note" id="gtestMsg">키는 Google AI Studio에서 받을 수 있어요. 이 브라우저에만 저장돼요.</span></div>
+        <p class="note" style="margin:4px 0 0">파일 이름 앞부분이 같은 것끼리(예: 프롬1_…, 프롬2_…) 3장씩 묶고, 앞부분이 모두 다르면 이름 순서대로 3장씩 묶어요. Anthropic API 키가 있으면 Claude가 세트 그림을 보고 공통 그림체를 Pony용 영문 태그로 자동으로 써요(인물·노출·글자는 빼고). Runware는 글(태그)로만 그리므로 그림 자체는 보내지 않아요. 바로 저장되고 이 브라우저에만 남아요.</p></div>
+      <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="gtest">Runware 연결 테스트</button><span class="note" id="gtestMsg">키는 Runware 대시보드(runware.ai)에서 받을 수 있어요. 이 브라우저에만 저장돼요.</span></div>
       <p class="note" style="margin-top:6px">현재 AI 연결: <b>${engineName()}</b>. claude.ai에서 열면 내 Claude 계정으로 대화해요. 키는 이 브라우저에만 저장돼요.</p>
       <p class="note">저장 위치: ${KV.dbOk ? "내 claude.ai 계정 (기기 간 동기화)" : "이 브라우저"} · 이미지: ${IMG.assets ? "아티팩트 저장소" : "압축 후 내 저장 공간"}</p>
       <div class="cta-row"><button class="btn sm pri" id="setSave">설정 저장</button><button class="btn sm danger" id="reset">모든 데이터 초기화</button></div>
@@ -3169,14 +3249,14 @@ function viewMe() {
     });
   };
   const readSets = async (ids) => {
-    if (!S.settings.geminiKey) { const k = $("#gkey")?.value.trim(); if (k) { S.settings.geminiKey = k; saveSettings(); } }
-    if (!hasGeminiKey()) { toast("Gemini API 키를 넣으면 세트의 그림체를 읽어 문구를 자동으로 써요."); return; }
+    if (!S.settings.apiKey) { const k = $("#key")?.value.trim(); if (k) { S.settings.apiKey = k; saveSettings(); } }
+    if (!hasClaudeKey()) { toast("Anthropic API 키를 넣으면 Claude가 세트 그림을 읽어 그림체 태그를 자동으로 써요."); return; }
     let ok = 0, err = null;
     for (const [i, id] of ids.entries()) {
       const s = findSet("set:" + id); if (!s) continue;
       toast(`그림체를 읽는 중… ${i + 1}/${ids.length} · ${s.name}`);
-      try { s.prompt = await geminiStylePrompt(s.refs || []); ok++; saveSettings(); refreshStyle(); }
-      catch (e) { err = e; if (["no_key", "bad_key", "bad_model", "network", "rate_limited"].includes(e?.code)) break; }
+      try { s.prompt = await claudeStyleTags(s.refs || []); ok++; saveSettings(); refreshStyle(); }
+      catch (e) { err = e; if (["no_claude", "bad_claude", "network", "rate_limited"].includes(e?.code)) break; }
     }
     toast(err && !ok ? genErr(err) : `세트 ${ok}개의 그림체 문구를 썼어요${err ? " · " + genErr(err) : ""}`);
   };
@@ -3199,36 +3279,22 @@ function viewMe() {
       saveSettings(); refreshStyle();
       toast(`세트 ${made.length}개를 만들었어요 (${made.map((s) => s.name).join(", ")})`);
     } catch (err) { toast(err?.code === "nozip" ? "이 브라우저는 ZIP을 바로 열 수 없어요. 압축을 풀어 그림 파일들을 골라 주세요." : "파일을 읽지 못했어요. PNG·JPG·ZIP인지 확인해 주세요."); return; }
-    if (hasGeminiKey() || $("#gkey")?.value.trim()) await readSets(made.map((s) => s.id));
+    if (hasClaudeKey() || $("#key")?.value.trim()) await readSets(made.map((s) => s.id));
   };
   paintSets();
-  const paintSref = () => {
-    const box = $("#srefs"), refs = legacyRefs();
-    box.innerHTML = refs.map((r, i) => `<span class="sref">${IMG.tag(r)}<button data-srm="${i}" aria-label="참고 그림 빼기">✕</button></span>`).join("") + (refs.length < 3 ? `<button class="sref add" id="srefAdd" type="button">+ 추가</button>` : "");
-    IMG.hydrate(box);
-    $$("[data-srm]", box).forEach((b) => b.onclick = () => { const r = legacyRefs()[+b.dataset.srm]; IMG.drop(r); S.settings.styleRefs = legacyRefs().filter((x) => x !== r); saveSettings(); paintSref(); });
-    const add = $("#srefAdd", box); if (add) add.onclick = () => $("#srefFile").click();
-  };
-  $("#srefFile").onchange = async (e) => {
-    const files = [...e.target.files].slice(0, 3 - legacyRefs().length); e.target.value = "";
-    if (!files.length) return; toast("올리는 중…");
-    try { for (const f of files) S.settings.styleRefs = [...legacyRefs(), await IMG.put(f)]; saveSettings(); paintSref(); toast("참고 그림을 넣었어요"); }
-    catch { toast("이미지를 읽지 못했어요. PNG·JPG로 다시 올려 주세요."); }
-  };
-  paintSref();
   $("#setSave").onclick = () => {
     S.settings.fs = +$("#fs").value; S.settings.theme = $("#th").value; S.settings.apiKey = $("#key").value.trim();
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle();
+    S.settings.runwareKey = $("#rkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle();
     saveSettings(); applySettings(); if (S.engine === "none" && S.settings.apiKey) S.engine = "byok"; toast("설정을 저장했어요"); viewMe();
   };
   $("#gtest").onclick = () => {
-    S.settings.geminiKey = $("#gkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle(); saveSettings();
-    genImageSheet({ title: "이미지 생성 테스트", aspect: "1:1", prompt: `${styled("웹툰풍 일러스트")}, 창가에서 커피를 마시는 고양이, 따뜻한 오후 햇살`,
-      onUse: async () => toast("테스트 이미지는 저장하지 않아요. 키가 잘 작동해요!") });
+    S.settings.runwareKey = $("#rkey").value.trim(); S.settings.imgModel = $("#gmodel").value; saveStyle(); saveSettings();
+    genImageSheet({ title: "Runware 연결 테스트", aspect: "1:1", prompt: [styled(""), "1girl, solo, adult, sitting by the window, holding coffee cup, cat, warm afternoon sunlight, cozy room"].filter(Boolean).join(", "),
+      onUse: async () => toast("테스트 이미지는 저장하지 않아요. Runware 연결이 잘 돼요!") });
   };
   $("#reset").onclick = () => confirmSheet("모든 데이터를 지울까요?", "대화방, 만든 캐릭터, 하트, 페르소나, 이미지 연결이 모두 지워져요. 되돌릴 수 없어요.", "전부 삭제", () => {
     S.rooms.forEach((r) => KV.set(roomKey(r.id), undefined));
-    ["rooms", "mine", "wallet", "personas", "profile", "imgpacks", "coverpacks", "lorepacks"].forEach((k) => KV.set(k, undefined));
+    ["rooms", "mine", "wallet", "personas", "profile", "imgpacks", "coverpacks", "lorepacks", "ponytags"].forEach((k) => KV.set(k, undefined));
     IDB.clear(); try { Object.keys(localStorage).filter((k) => /^hv1_img[a-z0-9]{10,30}$/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch {}
     S.mine = []; publishCommunity();
     setTimeout(() => location.reload(), 600);
@@ -3246,8 +3312,8 @@ function personaSheet(p, after) {
   IMG.hydrate(ov);
   $("#avBtn", ov).onclick = () => $("#av", ov).click();
   $("#av", ov).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { img = await IMG.put(f); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } catch { toast("이미지를 읽지 못했어요."); } };
-  $("#avAi", ov).onclick = () => genImageSheet({ title: "AI로 페르소나 이미지 만들기", aspect: "1:1", refs: img ? [img] : [],
-    prompt: `${styled("웹툰풍 프로필 일러스트")}, ${$("#pd", ov).value.trim() || $("#pn", ov).value.trim() || "인물"}, 정면 상반신, 정사각형 구도, 단순한 배경`,
+  $("#avAi", ov).onclick = () => genImageSheet({ title: "AI로 페르소나 이미지 만들기", aspect: "1:1",
+    prompt: [styled(""), "solo, adult, portrait, upper body, looking at viewer", $("#pd", ov).value.trim() || $("#pn", ov).value.trim(), "simple background"].filter(Boolean).join(", "),
     onUse: async (blob) => { img = await IMG.put(blob); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } });
   $("#avDel", ov).onclick = () => { img = ""; $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img: "" }); $("#avDel", ov).hidden = true; };
   $("#psave", ov).onclick = () => {
@@ -3282,6 +3348,7 @@ async function loadAll() {
   if (Array.isArray(rooms)) S.rooms = rooms;
   if (packs && typeof packs === "object") S.imgpacks = packs;
   IMG.migrate().catch(() => {});
+  KV.get("ponytags").then((t) => { if (t && typeof t === "object") TAGS = { ...t, ...TAGS }; }).catch(() => {});
   if (mc && typeof mc === "object") S.settings.memCfg = { ...S.settings.memCfg, ...mc };
   refreshFree();
 }
@@ -3290,7 +3357,15 @@ async function boot() {
     // 그림체를 아직 고른 적 없는 이전 설정은 웹소설 표지 세미리얼로 한 번 옮김
     if (s && !s.styleV2 && (!s.imgStyle || s.imgStyle === "none")) S.settings.imgStyle = "novel";
     if (!Array.isArray(S.settings.styleRefs)) S.settings.styleRefs = [];
-    if (!Array.isArray(S.settings.styleSets)) S.settings.styleSets = []; } catch {}
+    if (!Array.isArray(S.settings.styleSets)) S.settings.styleSets = [];
+    // Gemini → Runware: 다른 서비스의 키는 옮기지 않고 지우고, Runware 모델(AIR id)이 아니면 Pony로
+    let moved = false;
+    if ("geminiKey" in S.settings) { delete S.settings.geminiKey; moved = true; }
+    if (!/^(civitai|runware):/.test(String(S.settings.imgModel || ""))) { S.settings.imgModel = IMG_MODELS[0][0]; moved = true; }
+    if (typeof S.settings.runwareKey !== "string") S.settings.runwareKey = "";
+    // 따로 올렸던 '참고 그림'은 Runware(글로만 그림)에서 쓸 곳이 없어 저장 공간만 차지하므로 한 번 정리(그림체 세트 그림은 유지)
+    if (S.settings.styleRefs.length) { S.settings.styleRefs.forEach((r) => IMG.drop(r)); S.settings.styleRefs = []; moved = true; }
+    if (moved) saveSettings(); } catch {}
   applySettings();
   await loadAll();
   renderShell(); route();

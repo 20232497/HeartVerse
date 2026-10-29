@@ -426,6 +426,13 @@ details.stat[open] summary::after { content:"▴"; }
 .sref { position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden; border:1px solid var(--line); background:var(--surface2); padding:0; }
 .sref img { width:100%; height:100%; object-fit:cover; display:block; }
 .sref button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; font-size:12px; line-height:1; }
+.ssets { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; }
+.sset { border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:6px; background:var(--bg); }
+.sset.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+.sset .th { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.sset .th span { aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--surface2); }
+.sset .th img { width:100%; height:100%; object-fit:cover; display:block; }
+.sset .note { margin:0; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .sref.add { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; border-style:dashed; cursor:pointer; }
 
 /* ── 스토어 */
@@ -1159,13 +1166,61 @@ function shrink(file, max, q, asBlob) {
 const IMG_STYLES = {
   none: ["기본 (프롬프트 그대로)", ""],
   oriental: ["동양 판타지 일러스트", "2D 애니메이션 일러스트, 가늘고 깔끔한 선화, 셀 채색, 흰색·진홍색·금색만 쓰는 제한된 색, 새까만 단색 배경, 붉은 먹으로 그린 듯한 소용돌이 문양과 금빛 나비 장식, 정면 대칭 구도, 섬세한 동양풍 캐릭터 일러스트"],
-  novel: ["웹소설 표지 세미리얼 (2.5D)", "한국 웹소설 표지풍 세미리얼 2.5D 애니 일러스트, 도자기처럼 매끈한 피부와 은은한 홍조, 속눈썹이 긴 크고 또렷한 눈, 윤기 있는 입술, 한 올 한 올 살린 윤기 나는 머리카락, 부드러운 디지털 페인팅 채색, 영화 같은 역광과 림라이트, 깊은 명암 대비, 빛망울(보케)로 흐리게 처리한 배경, 고해상도 정밀 묘사"],
+  novel: ["웹소설 표지 세미리얼 (2.5D)", "한국 웹소설 표지풍 세미리얼 2.5D 애니 일러스트, 도자기처럼 매끈한 피부와 은은한 홍조, 속눈썹이 긴 크고 또렷한 눈, 윤기 있는 입술, 한 올 한 올 살린 윤기 나는 머리카락, 부드러운 디지털 페인팅 채색, 영화 같은 역광과 림라이트, 보랏빛·푸른빛 네온과 도시 야경 조명, 깊은 명암 대비, 빛망울(보케)로 흐리게 처리한 배경, 고해상도 정밀 묘사"],
+  anime: ["2D 애니 일러스트", "2D 애니메이션 일러스트, 또렷하고 날렵한 선화, 셀 채색에 유리처럼 반짝이는 하이라이트, 진홍·금·청록 같은 선명한 포인트 색과 높은 대비, 새까맣거나 새하얀 배경에 인물을 띄운 구성, 빛 입자와 반짝임·렌즈 플레어, 나비·새·꽃·후광 같은 장식 요소, 결이 살아 있는 긴 머리카락의 흐름, 얼굴 위주의 가까운 상반신 구도, 고해상도"],
   custom: ["직접 입력", ""]
 };
-function imgStyleText() { const k = S.settings.imgStyle; return (k === "custom" ? S.settings.imgStyleCustom || "" : IMG_STYLES[k]?.[1] || "").trim(); }
+/* 그림체 세트: 그림 3장 + 그림체 문구 한 묶음(S.settings.styleSets). imgStyle이 "set:<id>"면 세트의 문구와 그림을 씀 */
+function activeSet() { const k = String(S.settings.imgStyle || ""); return k.startsWith("set:") ? (S.settings.styleSets || []).find((s) => "set:" + s.id === k) || null : null; }
+function styleLabel() { const s = activeSet(); return s ? "세트 · " + s.name : IMG_STYLES[S.settings.imgStyle]?.[0] || IMG_STYLES.none[0]; }
+function imgStyleText() { const k = S.settings.imgStyle, s = activeSet(); return (s ? s.prompt || "" : k === "custom" ? S.settings.imgStyleCustom || "" : IMG_STYLES[k]?.[1] || "").trim(); }
 function styled(fallback) { return imgStyleText() || fallback; }
-/* 그림체 참고 그림: 설정에 올린 최대 3장을 매 생성 요청 앞에 붙여 그림체만 따르게 함 */
-function styleRefs() { return (S.settings.styleRefs || []).filter(validRef).slice(0, 3); }
+/* 그림체 참고 그림: 세트를 쓰면 세트의 3장, 아니면 설정에 따로 올린 최대 3장을 매 생성 요청 앞에 붙여 그림체만 따르게 함 */
+function legacyRefs() { return (S.settings.styleRefs || []).filter(validRef).slice(0, 3); }
+function styleRefs() { const s = activeSet(); return s ? (s.refs || []).filter(validRef).slice(0, 3) : legacyRefs(); }
+function styleOptionsHTML() {
+  const cur = S.settings.imgStyle || "none";
+  return [...Object.entries(IMG_STYLES).map(([k, [l]]) => [k, l]), ...(S.settings.styleSets || []).map((s) => ["set:" + s.id, "세트 · " + s.name])]
+    .map(([k, l]) => `<option value="${esc(k)}" ${cur === k ? "selected" : ""}>${esc(l)}</option>`).join("");
+}
+/* 이름 앞부분이 같은 파일끼리(프롬1_…, 프롬2_…) 3장씩 묶음. 앞부분이 모두 다르면 이름 순서대로 3장씩 */
+function groupStyleFiles(files) {
+  const base = (n) => n.replace(/\.[^.]+$/, ""), split = (n) => /^(.+?)[_\-\s.](.*)$/.exec(base(n));
+  const sorted = [...files].sort((a, b) => base(a.name).localeCompare(base(b.name), "ko", { numeric: true }));
+  const key = (n) => (split(n)?.[1] || base(n).replace(/\d+$/, "")).trim() || base(n);
+  const map = new Map();
+  for (const f of sorted) { const k = key(f.name); if (!map.has(k)) map.set(k, []); map.get(k).push(f); }
+  let groups = [...map.entries()].map(([k, fs]) => ({ k, fs, plain: false }));
+  if (sorted.length > 1 && groups.every((g) => g.fs.length === 1)) groups = [{ k: "세트", fs: sorted, plain: true }];
+  const out = [];
+  for (const g of groups) for (let i = 0; i < g.fs.length; i += 3) {
+    const fs = g.fs.slice(i, i + 3), desc = (split(fs[0].name)?.[2] || "").replace(/\d+$/, "").trim();
+    const name = g.plain ? `세트 ${out.length + 1}` : g.k + (g.fs.length > 3 ? ` (${i / 3 + 1})` : "") + (desc ? ` · ${desc}` : "");
+    out.push({ name: name.slice(0, 30), files: fs });
+  }
+  return out;
+}
+/* 브라우저만으로 ZIP 안의 그림 꺼내기 (무압축·deflate, 파일 이름 UTF-8/EUC-KR) */
+async function unzipImages(file) {
+  const buf = new Uint8Array(await file.arrayBuffer()), dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), out = [];
+  let e = buf.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error("zip");
+  const count = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true);
+  const dec = (bytes, utf) => { if (utf) return new TextDecoder().decode(bytes); try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { return new TextDecoder("euc-kr").decode(bytes); } };
+  for (let i = 0; i < count && dv.getUint32(p, true) === 0x02014b50; i++) {
+    const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), lho = dv.getUint32(p + 42, true);
+    const name = dec(buf.subarray(p + 46, p + 46 + nlen), flags & 0x800); p += 46 + nlen + xlen + clen;
+    const short = name.split("/").pop();
+    if (!/\.(png|jpe?g|webp)$/i.test(short) || /(^|\/)(__MACOSX|\.)/.test(name)) continue;
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true), data = buf.subarray(start, start + size);
+    const bytes = method === 0 ? data : method === 8 ? new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer()) : null;
+    if (bytes) out.push(new File([bytes], short, { type: /\.png$/i.test(short) ? "image/png" : /\.webp$/i.test(short) ? "image/webp" : "image/jpeg" }));
+  }
+  return out;
+}
+/* 세트 이름으로 미리 채우는 문구(키가 없거나 읽기 전) — '애니'면 2D 애니, '일상·리얼·세미·표지'면 세미리얼 */
+function guessStylePrompt(name) { return /애니|anime|만화|셀/i.test(name) ? IMG_STYLES.anime[1] : /일상|리얼|세미|표지|2\.5/i.test(name) ? IMG_STYLES.novel[1] : ""; }
 /* 표지 프롬프트: 세계관 작품은 히로인들이 모인 단체 표지, 1인 작품은 주인공 중심 */
 function coverPrompt(c) {
   const cast = (c.cast || []).filter((x) => x.name), head = `${styled("웹소설 표지풍 일러스트")}${c.title ? `, 작품 「${c.title}」의 표지` : ""}${c.oneLiner ? `. ${c.oneLiner}` : ""}`;
@@ -1182,6 +1237,36 @@ async function refToPart(ref) {
     return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
   } catch { return null; }
 }
+async function geminiPost(model, body, signal) {
+  if (!S.settings.geminiKey) throw { code: "no_key" };
+  let res;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": S.settings.geminiKey }, body: JSON.stringify(body)
+    });
+  } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network" }; }
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = j.error?.message || "";
+    throw { code: res.status === 429 ? "rate_limited" : (res.status === 401 || res.status === 403 || /api.?key/i.test(msg)) ? "bad_key" : res.status === 404 ? "bad_model" : "upstream_error", msg };
+  }
+  return j;
+}
+/* 세트의 그림들을 Gemini에 보여 주고 공통 그림체만 이미지 생성용 문구로 받아옴 */
+const STYLE_READ_MODEL = "gemini-2.5-flash";
+async function geminiStylePrompt(refs) {
+  const parts = [];
+  for (const r of refs) { const p = validRef(r) && await refToPart(r); if (p) parts.push(p); }
+  if (!parts.length) throw { code: "upstream_error", msg: "그림 없음" };
+  parts.push({ text: `위 ${parts.length}장은 한 그림체 세트다. 이미지 생성 AI에 그대로 넣을 '그림체 문구'를 한국어로 한 문단 써라.
+- ${parts.length}장에 공통된 화풍만 쓴다: 선의 굵기와 정리, 채색 방식(셀·페인팅·수채 등), 명암과 하이라이트, 조명, 색감과 팔레트, 질감, 배경 처리, 효과(빛망울·입자·문양 등), 자주 쓰는 구도
+- 인물의 신체 특징·노출·의상 노출 정도, 특정 인물·작품·작가·서비스 이름, 그림 속 글자는 쓰지 않는다
+- 쉼표로 이은 명사구 10~16개, 150~260자. 따옴표나 설명 없이 문구만 출력한다` });
+  const j = await geminiPost(STYLE_READ_MODEL, { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.4 } });
+  const text = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("").replace(/^["'「“]+|["'」”]+$/g, "").replace(/\s+/g, " ").trim();
+  if (!text) throw { code: "blocked", msg: j.promptFeedback?.blockReason || "" };
+  return text.slice(0, 500);
+}
 async function geminiImage(prompt, { aspect = "4:5", refs = [], signal, style = true } = {}) {
   if (!S.settings.geminiKey) throw { code: "no_key" };
   const parts = [];
@@ -1191,20 +1276,7 @@ async function geminiImage(prompt, { aspect = "4:5", refs = [], signal, style = 
   const guide = (sN ? `[그림체 참고] 앞의 ${sN}장은 그림체 참고용이다. 선·채색·명암·조명·색감, 얼굴과 머리카락을 그리는 방식만 따른다. 그 그림 속 인물·의상·구도·배경·노출 정도·글자는 따라 하지 않는다.\n` : "") +
     (cN ? `[인물 참고] ${sN ? "이어지는" : "앞의"} ${cN}장 속 인물과 같은 얼굴·머리 모양·체형으로 그린다.\n` : "");
   parts.push({ text: guide + prompt });
-  const model = S.settings.imgModel || IMG_MODELS[0][0];
-  let res;
-  try {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST", signal,
-      headers: { "content-type": "application/json", "x-goog-api-key": S.settings.geminiKey },
-      body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: aspect } } })
-    });
-  } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network" }; }
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = j.error?.message || "";
-    throw { code: res.status === 429 ? "rate_limited" : (res.status === 401 || res.status === 403 || /api.?key/i.test(msg)) ? "bad_key" : res.status === 404 ? "bad_model" : "upstream_error", msg };
-  }
+  const j = await geminiPost(S.settings.imgModel || IMG_MODELS[0][0], { contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: aspect } } }, signal);
   const cand = j.candidates?.[0], img = cand?.content?.parts?.find((p) => p.inlineData?.data);
   if (!img) throw { code: "blocked", msg: j.promptFeedback?.blockReason || cand?.finishReason || "" };
   const bin = atob(img.inlineData.data), u8 = new Uint8Array(bin.length);
@@ -1215,7 +1287,7 @@ function genErr(e) {
   return {
     no_key: "설정에서 Gemini API 키를 먼저 넣어 주세요.",
     bad_key: "Gemini API 키가 올바르지 않거나 권한이 없어요.",
-    bad_model: "이미지 모델을 찾을 수 없어요. 설정에서 다른 모델을 골라 주세요.",
+    bad_model: "Gemini 모델을 찾을 수 없어요. 설정에서 다른 이미지 모델을 고르거나 잠시 뒤 다시 시도해 주세요.",
     rate_limited: "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.",
     blocked: "안전 정책 때문에 이미지가 만들어지지 않았어요. 프롬프트를 바꿔 보세요.",
     network: window.claude?.use ? "claude.ai 안에서는 외부 API 호출이 막혀 Gemini를 부를 수 없어요. 파일로 열어서 써 주세요." : "Gemini에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.",
@@ -1231,7 +1303,7 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
     <div class="field" style="margin-top:0"><label for="gp">프롬프트</label><textarea id="gp" maxlength="2000" style="min-height:110px">${esc(prompt)}</textarea></div>
     ${refs.length ? `<div class="toggle" style="margin-top:10px"><label for="gref">등록된 이미지를 참고해서 같은 인물로 그리기</label><input type="checkbox" id="gref" checked></div>` : ""}
     ${styleRefs().length ? `<div class="toggle" style="margin-top:10px"><label for="gsr">그림체 참고 그림 ${styleRefs().length}장 함께 보내기</label><input type="checkbox" id="gsr" checked></div>` : ""}
-    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(IMG_STYLES[S.settings.imgStyle]?.[0] || IMG_STYLES.none[0])}${styleRefs().length ? ` · 참고 그림 ${styleRefs().length}장` : ""}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
+    <div class="gen-pv" id="gpv"><span class="note">${S.settings.geminiKey ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(styleLabel())}${styleRefs().length ? ` · 참고 그림 ${styleRefs().length}장` : ""}` : "설정에서 Gemini API 키를 먼저 넣어 주세요."}</span></div>
     <div class="cta-row"><button class="btn ghost" data-x>닫기</button><span class="spacer"></span><button class="btn" id="gmk">생성</button><button class="btn pri" id="guse" disabled>이 이미지 쓰기</button></div></div>`;
   document.body.append(ov);
   let blob = null, url = "", ctl = null;
@@ -1261,7 +1333,7 @@ const S = {
   wallet: { hearts: 0, freeDay: today(), freeUsed: 0, pro: null, history: [], ledger: [], ack: {} },
   personas: [{ id: "p1", name: "유저", memo: "", desc: "", img: "", def: true }],
   profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {}, coverpacks: {}, lorepacks: {},
-  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", imgStyle: "novel", imgStyleCustom: "", styleRefs: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
+  settings: { fs: 15.5, theme: "system", apiKey: "", geminiKey: "", imgModel: "gemini-2.5-flash-image", imgStyle: "novel", imgStyleCustom: "", styleRefs: [], styleSets: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" } },
   engine: "pending", cat: "전체", q: ""
 };
 let SAMPLE = null, samplePromise = null, DB = null, DOWNLOADS = null;
@@ -2894,9 +2966,13 @@ function viewMe() {
         <div class="field"><label for="gkey">Gemini API 키 (AI 이미지 생성 · 파일로 열었을 때)</label><input id="gkey" type="password" autocomplete="off" placeholder="AIza..." value="${esc(S.settings.geminiKey)}"></div>
         <div class="field"><label for="gmodel">이미지 모델</label><select id="gmodel">${[...IMG_MODELS, ...(IMG_MODELS.some((m) => m[0] === S.settings.imgModel) ? [] : [[S.settings.imgModel, S.settings.imgModel]])].map(([k, l]) => `<option value="${esc(k)}" ${S.settings.imgModel === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
       </div>
-      <div class="field"><label for="gstyle">그림체 프리셋</label><select id="gstyle">${Object.entries(IMG_STYLES).map(([k, [l]]) => `<option value="${k}" ${(S.settings.imgStyle || "none") === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
-      <div class="field" id="gstyleBox" ${(S.settings.imgStyle || "none") === "none" ? "hidden" : ""}><label for="gstyleTxt">그림체 문구 — 슬롯·표지·페르소나의 AI 프롬프트 맨 앞에 들어가요. 고치면 '직접 입력'으로 바뀌어요.</label><textarea id="gstyleTxt" maxlength="600" style="min-height:76px">${esc(imgStyleText())}</textarea></div>
-      <div class="field"><span class="lbl">그림체 참고 그림 (최대 3장) — AI 이미지를 만들 때마다 함께 보내 이 그림체를 따르게 해요</span>
+      <div class="field"><label for="gstyle">그림체 프리셋</label><select id="gstyle">${styleOptionsHTML()}</select></div>
+      <div class="field" id="gstyleBox" ${(S.settings.imgStyle || "none") === "none" ? "hidden" : ""}><label for="gstyleTxt">그림체 문구 — 슬롯·표지·페르소나의 AI 프롬프트 맨 앞에 들어가요. 프리셋 문구를 고치면 '직접 입력'으로, 세트를 고른 상태면 그 세트 문구가 바로 고쳐져요.</label><textarea id="gstyleTxt" maxlength="600" style="min-height:76px">${esc(imgStyleText())}</textarea></div>
+      <div class="field"><span class="lbl">그림체 세트 — 그림 3장과 그림체 문구를 한 묶음으로. 고르면 참고 그림과 문구가 함께 적용돼요</span>
+        <div class="ssets" id="ssets"></div><input type="file" id="ssetFile" accept="image/png,image/jpeg,image/webp,.zip,application/zip" multiple hidden>
+        <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="ssetAdd" type="button">+ 세트 가져오기 (그림 여러 장 또는 ZIP)</button></div>
+        <p class="note" style="margin:4px 0 0">파일 이름 앞부분이 같은 것끼리(예: 프롬1_…, 프롬2_…) 3장씩 묶고, 앞부분이 모두 다르면 이름 순서대로 3장씩 묶어요. Gemini 키가 있으면 세트마다 공통 그림체를 읽어 문구를 자동으로 써요(인물·노출·글자는 빼고). 바로 저장되고 이 브라우저에만 남아요.</p></div>
+      <div class="field"><span class="lbl">프리셋과 함께 쓸 참고 그림 (최대 3장) — 세트를 고르면 세트 그림이 대신 쓰여요</span>
         <div class="srefs" id="srefs"></div><input type="file" id="srefFile" accept="image/png,image/jpeg,image/webp" multiple hidden>
         <p class="note" style="margin:4px 0 0">선·채색·조명 같은 그림체만 참고하고 인물·구도·노출은 따라 하지 않게 지시해요. 다른 서비스나 작가의 그림보다 직접 만든 그림을 넣는 걸 권해요. 바로 저장되고 이 브라우저에만 남아요.</p></div>
       <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="gtest">이미지 생성 테스트</button><span class="note" id="gtestMsg">키는 Google AI Studio에서 받을 수 있어요. 이 브라우저에만 저장돼요.</span></div>
@@ -2911,20 +2987,74 @@ function viewMe() {
   $$("[data-pedit]", v).forEach((b) => b.onclick = () => personaSheet(S.personas.find((p) => p.id === b.dataset.pedit), viewMe));
   const pa = $("#padd"); if (pa) pa.onclick = () => personaSheet(null, viewMe);
   const gs = $("#gstyle"), gt = $("#gstyleTxt");
-  gs.onchange = () => { const k = gs.value; $("#gstyleBox").hidden = k === "none"; gt.value = k === "custom" ? S.settings.imgStyleCustom || gt.value : IMG_STYLES[k][1]; };
-  gt.oninput = () => { if (gs.value !== "custom") gs.value = "custom"; };
+  const findSet = (k) => (S.settings.styleSets || []).find((s) => "set:" + s.id === k);
+  gs.onchange = () => { const k = gs.value, set = findSet(k); $("#gstyleBox").hidden = k === "none"; gt.value = set ? set.prompt || "" : k === "custom" ? S.settings.imgStyleCustom || gt.value : IMG_STYLES[k][1]; };
+  gt.oninput = () => { const set = findSet(gs.value); if (set) { set.prompt = gt.value; saveSettings(); paintSets(); } else if (gs.value !== "custom") gs.value = "custom"; };
   const saveStyle = () => { S.settings.imgStyle = gs.value; if (gs.value === "custom") S.settings.imgStyleCustom = gt.value.trim(); };
+  const refreshStyle = () => { if (!gs.isConnected) return; gs.innerHTML = styleOptionsHTML(); gs.value = S.settings.imgStyle || "none"; gs.onchange(); paintSets(); };
+  const paintSets = () => {
+    const box = $("#ssets"); if (!box) return;
+    const sets = S.settings.styleSets || [];
+    box.innerHTML = sets.length ? sets.map((s) => { const on = S.settings.imgStyle === "set:" + s.id; return `<div class="sset ${on ? "on" : ""}">
+      <div class="th">${(s.refs || []).filter(validRef).map((r) => `<span>${IMG.tag(r)}</span>`).join("")}</div>
+      <b>${esc(s.name)}${on ? ' <span class="pill">사용 중</span>' : ""}</b>
+      <p class="note">${esc(s.prompt || "아직 그림체 문구가 없어요. '문구 뽑기'를 눌러 주세요.")}</p>
+      <div class="cta-row" style="margin:0"><button class="btn sm ${on ? "" : "pri"}" data-suse="${esc(s.id)}" ${on ? "disabled" : ""}>사용</button><button class="btn sm" data-sgen="${esc(s.id)}">문구 뽑기</button><button class="btn sm ghost" data-sdel="${esc(s.id)}">삭제</button></div></div>`; }).join("") : `<p class="note">아직 세트가 없어요.</p>`;
+    IMG.hydrate(box);
+    $$("[data-suse]", box).forEach((b) => b.onclick = () => { S.settings.imgStyle = "set:" + b.dataset.suse; saveSettings(); refreshStyle(); toast("이 세트의 그림체로 만들도록 바꿨어요"); });
+    $$("[data-sgen]", box).forEach((b) => b.onclick = () => readSets([b.dataset.sgen]));
+    $$("[data-sdel]", box).forEach((b) => b.onclick = () => {
+      const s = findSet("set:" + b.dataset.sdel); if (!s) return;
+      (s.refs || []).forEach((r) => IMG.drop(r)); S.settings.styleSets = S.settings.styleSets.filter((x) => x !== s);
+      if (S.settings.imgStyle === "set:" + s.id) S.settings.imgStyle = "novel";
+      saveSettings(); refreshStyle(); toast("세트를 지웠어요");
+    });
+  };
+  const readSets = async (ids) => {
+    if (!S.settings.geminiKey) { const k = $("#gkey")?.value.trim(); if (k) { S.settings.geminiKey = k; saveSettings(); } }
+    if (!S.settings.geminiKey) { toast("Gemini API 키를 넣으면 세트의 그림체를 읽어 문구를 자동으로 써요."); return; }
+    let ok = 0, err = null;
+    for (const [i, id] of ids.entries()) {
+      const s = findSet("set:" + id); if (!s) continue;
+      toast(`그림체를 읽는 중… ${i + 1}/${ids.length} · ${s.name}`);
+      try { s.prompt = await geminiStylePrompt(s.refs || []); ok++; saveSettings(); refreshStyle(); }
+      catch (e) { err = e; if (["no_key", "bad_key", "bad_model", "network", "rate_limited"].includes(e?.code)) break; }
+    }
+    toast(err && !ok ? genErr(err) : `세트 ${ok}개의 그림체 문구를 썼어요${err ? " · " + genErr(err) : ""}`);
+  };
+  $("#ssetAdd").onclick = () => $("#ssetFile").click();
+  $("#ssetFile").onchange = async (e) => {
+    const picked = [...e.target.files]; e.target.value = "";
+    if (!picked.length) return; toast("그림을 읽는 중…");
+    let made = [];
+    try {
+      let files = [];
+      for (const f of picked) files.push(...(/\.zip$/i.test(f.name) || /zip/.test(f.type) ? await unzipImages(f) : [f]));
+      files = files.filter((f) => /\.(png|jpe?g|webp)$/i.test(f.name) || /^image\//.test(f.type));
+      if (!files.length) { toast("그림 파일을 찾지 못했어요. PNG·JPG·WEBP 또는 그 그림이 든 ZIP을 골라 주세요."); return; }
+      for (const g of groupStyleFiles(files).slice(0, 12)) {
+        const refs = []; for (const f of g.files) refs.push(await IMG.put(f));
+        made.push({ id: uid("ss"), name: g.name, refs, prompt: guessStylePrompt(g.name) });
+      }
+      S.settings.styleSets = [...(S.settings.styleSets || []), ...made];
+      if (!activeSet()) S.settings.imgStyle = "set:" + made[0].id;
+      saveSettings(); refreshStyle();
+      toast(`세트 ${made.length}개를 만들었어요 (${made.map((s) => s.name).join(", ")})`);
+    } catch { toast("파일을 읽지 못했어요. PNG·JPG·ZIP인지 확인해 주세요."); return; }
+    if (S.settings.geminiKey || $("#gkey")?.value.trim()) await readSets(made.map((s) => s.id));
+  };
+  paintSets();
   const paintSref = () => {
-    const box = $("#srefs"), refs = styleRefs();
+    const box = $("#srefs"), refs = legacyRefs();
     box.innerHTML = refs.map((r, i) => `<span class="sref">${IMG.tag(r)}<button data-srm="${i}" aria-label="참고 그림 빼기">✕</button></span>`).join("") + (refs.length < 3 ? `<button class="sref add" id="srefAdd" type="button">+ 추가</button>` : "");
     IMG.hydrate(box);
-    $$("[data-srm]", box).forEach((b) => b.onclick = () => { const r = styleRefs()[+b.dataset.srm]; IMG.drop(r); S.settings.styleRefs = styleRefs().filter((x) => x !== r); saveSettings(); paintSref(); });
+    $$("[data-srm]", box).forEach((b) => b.onclick = () => { const r = legacyRefs()[+b.dataset.srm]; IMG.drop(r); S.settings.styleRefs = legacyRefs().filter((x) => x !== r); saveSettings(); paintSref(); });
     const add = $("#srefAdd", box); if (add) add.onclick = () => $("#srefFile").click();
   };
   $("#srefFile").onchange = async (e) => {
-    const files = [...e.target.files].slice(0, 3 - styleRefs().length); e.target.value = "";
+    const files = [...e.target.files].slice(0, 3 - legacyRefs().length); e.target.value = "";
     if (!files.length) return; toast("올리는 중…");
-    try { for (const f of files) S.settings.styleRefs = [...styleRefs(), await IMG.put(f)]; saveSettings(); paintSref(); toast("참고 그림을 넣었어요"); }
+    try { for (const f of files) S.settings.styleRefs = [...legacyRefs(), await IMG.put(f)]; saveSettings(); paintSref(); toast("참고 그림을 넣었어요"); }
     catch { toast("이미지를 읽지 못했어요. PNG·JPG로 다시 올려 주세요."); }
   };
   paintSref();
@@ -2999,7 +3129,8 @@ async function boot() {
   try { const s = JSON.parse(localStorage.getItem("hv1_settings") || "null"); if (s) S.settings = { ...S.settings, ...s, memCfg: { ...S.settings.memCfg, ...(s.memCfg || {}) } };
     // 그림체를 아직 고른 적 없는 이전 설정은 웹소설 표지 세미리얼로 한 번 옮김
     if (s && !s.styleV2 && (!s.imgStyle || s.imgStyle === "none")) S.settings.imgStyle = "novel";
-    if (!Array.isArray(S.settings.styleRefs)) S.settings.styleRefs = []; } catch {}
+    if (!Array.isArray(S.settings.styleRefs)) S.settings.styleRefs = [];
+    if (!Array.isArray(S.settings.styleSets)) S.settings.styleSets = []; } catch {}
   applySettings();
   await loadAll();
   renderShell(); route();

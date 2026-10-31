@@ -1251,7 +1251,8 @@ function shrink(file, max, q, asBlob) {
    이름·설명은 한국어. 모델은 영문 태그만 알아들으므로 한글(외모·키워드북·직접 쓴 그림체)은 보내기 직전 ponyTags()가 영문 태그로 바꿈 */
 /* 이미지 모델(Runware AIR). arch마다 품질 태그·수위 태그·CFG가 다름. 모두 Runware에서 실제 생성 확인(2026-10) */
 const IMG_MODELS = [
-  { id: "civitai:548016@861939", name: "세미리얼 PonyXL (Run七八造 v2)", arch: "pony" },
+  // 세미리얼은 CFG를 낮추고 플라스틱·인형 같은 피부를 막아야 자연스러움(2026-10 비교 생성으로 정함)
+  { id: "civitai:548016@861939", name: "세미리얼 PonyXL (Run七八造 v2)", arch: "pony", cfg: 4.5, neg: "3d, cgi, plastic skin, doll, airbrushed, oversaturated, heavy makeup" },
   { id: "civitai:142601@686323", name: "한국 웹툰 PonyXL (ToonyStark)", arch: "pony" },
   { id: "civitai:827184@1761560", name: "애니 일러스트 (WAI Illustrious v14)", arch: "illustrious" },
   // Pony Diffusion V6 XL(Civitai 257749·버전 290640)은 Runware 자체 호스팅 ID "imagerouter:"로만 불러짐
@@ -1264,8 +1265,8 @@ const ARCH = {
 const imgModelInfo = (id) => IMG_MODELS.find((m) => m.id === id) || { id, name: id, arch: "pony" };
 /* 그림체 프리셋: 모델 + 그림체 태그(그림체만 — 인물·구도·배경 태그를 넣으면 모든 그림이 그쪽으로 끌려감). 직접 입력·세트는 모델을 따로 고름 */
 const IMG_STYLES = {
-  webtoon: { name: "한국 웹툰 · 세미리얼", desc: "동양적인 얼굴과 2.5D 반실사 채색. 로맨스·일상 웹툰 표지 느낌", model: IMG_MODELS[0].id, tags: "korean, semi-realistic, 2.5d, detailed face, pale skin, soft lighting, glossy hair, delicate makeup" },
-  mature: { name: "성인 웹툰 · 글래머", desc: "성숙한 인물, 부드러운 피부 음영과 영화 같은 조명. 19금 웹툰 표지 느낌(수위는 따로 골라요)", model: IMG_MODELS[0].id, tags: "korean, mature, semi-realistic, 2.5d, glamorous, detailed face, soft skin shading, cinematic lighting, bokeh" },
+  webtoon: { name: "한국 웹툰 · 세미리얼", desc: "동양적인 얼굴과 자연스러운 반실사 채색. 로맨스·일상 웹툰 표지 느낌", model: IMG_MODELS[0].id, tags: "korean, semi-realistic, natural lighting, soft shading, realistic skin texture, natural makeup, detailed eyes" },
+  mature: { name: "성인 웹툰 · 글래머", desc: "성숙한 인물, 부드러운 피부 음영과 영화 같은 조명. 19금 웹툰 표지 느낌(수위는 따로 골라요)", model: IMG_MODELS[0].id, tags: "korean, mature, semi-realistic, glamorous, soft skin shading, realistic skin texture, cinematic lighting, bokeh" },
   line: { name: "한국 웹툰 · 선화", desc: "또렷한 선과 깔끔한 셀 채색. 연재 웹툰 컷 느낌", model: IMG_MODELS[1].id, tags: "korean webtoon, manhwa, clean lineart, soft cel shading" },
   anime: { name: "애니 일러스트", desc: "선명한 색과 반짝이는 눈. 게임·라이트노벨 일러스트 느낌", model: IMG_MODELS[2].id, tags: "illustration, beautiful detailed eyes, detailed face, glossy lips, shiny hair, rich colors, cinematic lighting, light particles, depth of field" },
   oriental: { name: "동양 판타지", desc: "평면 채색과 가는 선, 붉은색·금색 위주. 무협·동양풍 일러스트 느낌", model: IMG_MODELS[2].id, tags: "oriental fantasy, flat color, cel shading, thin clean lineart, limited palette, crimson and gold" },
@@ -1487,8 +1488,8 @@ async function runwareImage(prompt, { aspect = "4:5", rating = imgRating(), sign
   const [width, height] = RW_SIZES[aspect] || RW_SIZES["4:5"], R = RATINGS[rating], M = imgModelInfo(imgModelId()), A = ARCH[M.arch] || ARCH.pony;
   const task = { taskType: "imageInference", taskUUID: uuid4(),
     positivePrompt: [A.pos, M.arch === "illustrious" ? R.ill : R.pos, M.pos, tags].filter(Boolean).join(", ").slice(0, 2900),
-    negativePrompt: [A.neg, IMG_NEG, NEG_MINOR, R.neg].filter(Boolean).join(", "),
-    model: M.id, width, height, numberResults: 1, steps: 28, CFGScale: A.cfg, scheduler: "Euler a",
+    negativePrompt: [A.neg, M.neg, IMG_NEG, NEG_MINOR, R.neg].filter(Boolean).join(", "),
+    model: M.id, width, height, numberResults: 1, steps: 28, CFGScale: M.cfg || A.cfg, scheduler: "Euler a",
     outputFormat: "WEBP", outputType: "dataURI", ...(adult ? {} : { checkNSFW: true }) };
   let j, res;
   for (let tries = 0; tries < 2; tries++) {
@@ -1499,7 +1500,9 @@ async function runwareImage(prompt, { aspect = "4:5", rating = imgRating(), sign
     const err = (Array.isArray(j.errors) ? j.errors : j.error ? [j.error] : [])[0];
     const msg = err ? String([err.code, err.message, err.parameter].filter(Boolean).join(" ")) : "";
     // checkNSFW를 모르는 엔드포인트(프록시 등)면 한 번만 빼고 다시
-    if (err && /checkNSFW/i.test(msg) && tries === 0) { delete task.checkNSFW; continue; }
+    if (err && /checkNSFW/i.test(msg) && tries === 0) { delete task.checkNSFW; task.taskUUID = uuid4(); continue; }
+    // Runware가 모델을 처음 불러올 때 가끔 실패함(failedModelLoad) → 새 작업 ID로 한 번 더
+    if (err && /failedModelLoad/i.test(msg) && tries === 0) { task.taskUUID = uuid4(); continue; }
     if (!res.ok || err) {
       throw { code: res.status === 401 || res.status === 403 || /api.?key|auth/i.test(msg) ? "bad_key" : res.status === 402 || /credit|fund|balance|insufficient/i.test(msg) ? "no_funds"
         : res.status === 429 ? "rate_limited" : /model/i.test(msg) ? "bad_model" : "upstream_error", msg };
@@ -3666,7 +3669,8 @@ async function boot() {
     else if (!String(st).startsWith("set:") && !IMG_STYLES[st]) { S.settings.imgStyle = "webtoon"; moved = true; }
     S.settings.styleSets.forEach((x) => {
       if (!x.model || BAD_IMG_MODELS.includes(x.model)) { x.model = guessStyleModel(x.name); moved = true; }
-      if (/^(anime coloring, cel shading, sharp lineart|semi-realistic, 2\.5d, detailed face, porcelain skin)/.test(x.prompt || "")) { x.prompt = guessStylePrompt(x.name); moved = true; }
+      // 예전 기본 문구(인물·구도 태그가 섞인 것, 인위적인 세미리얼 문구)는 지금 문구로
+      if (/^(anime coloring, cel shading, sharp lineart|semi-realistic, 2\.5d, detailed face, porcelain skin|korean, semi-realistic, 2\.5d, detailed face, pale skin)/.test(x.prompt || "")) { x.prompt = guessStylePrompt(x.name); moved = true; }
       // 첫 애니 문구의 colorful(무지개 머리)·vivid colors("VIVID" 글자) → 지금 문구로
       if (/^illustration, beautiful detailed eyes, .*\b(colorful|vivid colors)\b/.test(x.prompt || "")) { x.prompt = guessStylePrompt(x.name); moved = true; }
     });

@@ -2,7 +2,7 @@
 
 버블챗 스타일의 캐릭터 대화형 에피소드 플랫폼 프로토타입.
 
-- 웹 주소(GitHub Pages): https://20232497.github.io/HeartVerse/ — `main`의 `index.html`을 그대로 띄움. API 키는 MY → 설정에 넣으면 각자 브라우저에만 저장
+- 웹 주소(GitHub Pages): https://20232497.github.io/HeartVerse/ — `main`의 `index.html`을 그대로 띄움. API 키는 MY → 설정에 넣으면 각자 브라우저에만 저장. **휴대폰에서는 이 주소로 열기** — 내려받은 html 파일이나 GitHub 코드 화면은 휴대폰에서 앱이 실행되지 않음
 - 데모: https://claude.ai/artifact/3sfDYFeJ13dHrkWwBFj1YG (비공개, 공유 시 열람 가능)
 - `index.html` 하나로 동작. 브라우저에서 직접 열면 MY → 설정에 Anthropic API 키를 넣어 사용 (AI 이미지 생성은 Runware API 키)
 

@@ -1,3 +1,5 @@
+<!doctype html>
+<html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>HEARTVERSE</title>
@@ -53,6 +55,7 @@ button { cursor:pointer; }
 .rail .recent span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px; }
 .rail-foot { margin-top:auto; padding-top:14px; }
 #view { height:100%; overflow-y:auto; overflow-x:hidden; position:relative; }
+.boot-msg { padding:48px 20px; text-align:center; color:var(--muted); font-size:14px; }
 .tabbar { display:none; }
 @media (max-width:899px) {
   .app { grid-template-columns:1fr; }
@@ -512,10 +515,17 @@ table.tbl .plus { color:var(--gold); font-weight:700; }
 
 <div class="app">
   <nav class="rail" id="rail" aria-label="메인 메뉴"></nav>
-  <main id="view"></main>
+  <main id="view"><p class="boot-msg" id="bootMsg">불러오는 중…</p></main>
 </div>
 <nav class="tabbar" id="tabbar" aria-label="하단 메뉴"></nav>
 
+<!-- 휴대폰(오래된 브라우저·인앱 브라우저)에서 앱 스크립트가 멈추면 빈 화면 대신 이유를 보여 줌. 첫 화면이 그려지면 bootMsg가 사라져 아무 일도 안 함 -->
+<script>
+window.addEventListener("error", function (e) {
+  var m = document.getElementById("bootMsg");
+  if (m) m.textContent = "화면을 불러오지 못했어요. 브라우저를 최신으로 업데이트하거나 Chrome·Safari 앱에서 열어 주세요. (" + (e.message || "알 수 없는 오류") + ")";
+});
+</script>
 <script>
 "use strict";
 /* ================================================================
@@ -2316,9 +2326,9 @@ function pavHTML(p) { const img = IMG.tag(p.img); return `<div class="pav">${img
 function closeOpen(line) {
   const st = [];
   for (const ch of line) {
-    if (ch === "*" || ch === '"') { if (st.at(-1) === ch) st.pop(); else st.push(ch); }
+    if (ch === "*" || ch === '"') { if (st[st.length - 1] === ch) st.pop(); else st.push(ch); }
     else if (ch === "“") st.push("”");
-    else if (ch === "”" && st.at(-1) === "”") st.pop();
+    else if (ch === "”" && st[st.length - 1] === "”") st.pop();
   }
   let out = line + st.reverse().join("");
   if (/^\s*\[(?!\[)[^\]]*$/.test(out)) out += "]";
@@ -2961,7 +2971,7 @@ function openImageSlots(c, code) {
   c = normalizeChar(c);
   const mine = S.mine.find((m) => m.id === c.id);
   let cur = code && c.cast.some((x) => x.code === code) ? code : c.cast[0].code;
-  const store = () => mine ? (mine.images ||= {}) : (S.imgpacks[c.id] ||= {});
+  const store = () => mine ? (mine.images = mine.images || {}) : (S.imgpacks[c.id] = S.imgpacks[c.id] || {});
   const persist = () => { if (mine) { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); } else KV.set("imgpacks", S.imgpacks); };
   const put = async (file, sit, code = cur) => { const ref = await IMG.put(file); const m = store()[code] || {}; IMG.drop(m[sit]); m[sit] = ref; store()[code] = m; };
   const prompt = (cast, i) => buildPonyPrompt(cast, i, c);
@@ -3039,7 +3049,7 @@ function openWorldArt(c) {
       if (mine) { IMG.drop(mine.img); mine.img = ref; saveMine(); }
       else { IMG.drop(S.coverpacks[c.id]); if (ref) S.coverpacks[c.id] = ref; else delete S.coverpacks[c.id]; KV.set("coverpacks", S.coverpacks); }
     } else {
-      const st = mine ? (mine.loreImages ||= {}) : (S.lorepacks[c.id] ||= {});
+      const st = mine ? (mine.loreImages = mine.loreImages || {}) : (S.lorepacks[c.id] = S.lorepacks[c.id] || {});
       IMG.drop(st[key]); if (ref) st[key] = ref; else delete st[key];
       if (mine) saveMine(); else KV.set("lorepacks", S.lorepacks);
     }
@@ -3260,7 +3270,7 @@ JSON 하나로만 답하라:
 /* 커뮤니티: pub/<내 id> 문서 하나에 내 공개 캐릭터를 모아 둔다 (모두 읽기, 본인만 쓰기) */
 function pubImages(images) {
   const out = {};
-  for (const [code, m] of Object.entries(images || {})) for (const [k, ref] of Object.entries(m || {})) if (typeof ref === "string" && ref.startsWith("/_blob/") && validRef(ref)) (out[code] ||= {})[k] = ref;
+  for (const [code, m] of Object.entries(images || {})) for (const [k, ref] of Object.entries(m || {})) if (typeof ref === "string" && ref.startsWith("/_blob/") && validRef(ref)) (out[code] = out[code] || {})[k] = ref;
   return out;
 }
 async function publishCommunity() {
@@ -3720,3 +3730,4 @@ async function boot() {
 }
 boot();
 </script>
+</html>

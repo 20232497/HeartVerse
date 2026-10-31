@@ -50,6 +50,7 @@
 - 답변과 UI 문구는 한국어
 - 수위: 성인 캐릭터. 기본(보호 모드)은 노골적 성적 묘사 금지(암전 처리). 성인 모드는 로컬 파일 + 성인 확인 + OpenRouter 키일 때만이고, 미성년(또는 미성년으로 보이는) 인물의 성적 묘사·그림은 어떤 설정에서도 막음. 성인 지시를 Claude(sample·BYOK)에 보내지 않기
 - 수정 후: node --check로 스크립트 문법 확인 → Playwright로 흐름 테스트 → publish
-- index.html 맨 위의 charset·viewport 메타는 로컬 파일(특히 모바일)로 열 때 필요하니 지우지 않기 (publish 래퍼에도 있지만 파일 모드엔 없음)
+- index.html 맨 위의 <!doctype html>·<html lang="ko">·charset·viewport 메타는 지우지 않기. GitHub Pages·로컬 파일은 그대로 띄우므로 doctype이 없으면 쿼크 모드가 됨(claude.ai publish 래퍼에도 있지만 그 밖에서는 없음)
+- 모바일: 오래된 iOS(13 이하)·인앱 브라우저도 돌도록 아주 새 문법(||= 같은 논리 할당, Array.at, 정규식 lookbehind, structuredClone 등)은 쓰지 않기. #view 안의 bootMsg("불러오는 중…")와 앞쪽의 작은 ES5 스크립트가, 앱 스크립트가 멈추면 빈 화면 대신 이유를 보여 줌. 휴대폰은 파일이 아니라 웹 주소로 열어야 함. 테스트는 Playwright WebKit(iPhone 13·SE)·Chromium(Galaxy)으로
 - 파일이 크니(2,400줄+) 전체를 다시 쓰지 말고 필요한 함수·CSS 블록만 고치기. 설명할 때도 바뀐 부분만 보여 주기
 - 구조 분리를 제안할 땐 단일 파일을 점진적으로 나누는 방법을 먼저 검토. 단, 로컬 파일(file://)로 열면 <script type="module" src>가 CORS로 막혀 BYOK 모드가 깨지므로, 소스를 모듈로 나누더라도 배포물은 번들러로 합친 단일 index.html로 유지

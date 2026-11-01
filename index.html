@@ -1092,7 +1092,10 @@ const MODELS = {
   story:  { tier: "default", name: "스토리", badge: "추천", desc: "풍부한 묘사와 안정적인 캐릭터 연기", base: 4, memStep: 1 },
   master: { tier: "complex", name: "마스터", badge: "최고 품질", desc: "한 편의 소설 같은 몰입감. 복잡한 세계관과 전투 계산에 강해요", base: 8, memStep: 2 }
 };
-const LEN = { short: { name: "적게", mul: 0.75, desc: "짧고 빠른 티키타카", chars: "250~400자" }, mid: { name: "보통", mul: 1, desc: "지문과 대사가 균형 있게", chars: "450~750자" }, long: { name: "많게", mul: 1.5, desc: "소설처럼 길고 풍성하게", chars: "900~1300자" } };
+// chars는 본문 분량, lines는 한 응답에 넣을 대사 줄 수(대화가 자주 오가게), tokens는 상태 JSON까지 담을 출력 한도
+const LEN = { short: { name: "적게", mul: 0.75, desc: "짧고 빠른 티키타카", chars: "500~800자", lines: 4, tokens: 2000 },
+  mid: { name: "보통", mul: 1, desc: "지문과 대사가 균형 있게", chars: "1000~1500자", lines: 6, tokens: 3200 },
+  long: { name: "많게", mul: 1.5, desc: "소설처럼 길고 풍성하게", chars: "1800~2600자", lines: 10, tokens: 5000 } };
 const SIT = ["프로필", "기본", "웃음", "부끄러움", "슬픔", "놀람", "분노", "삐침", "공포", "부상", "회복", "휴식", "공격", "각성", "설렘"];
 const SIT_TINT = ["#f5f0ff", "#9fb4ff", "#ffd166", "#ff8fab", "#7b96ff", "#ffe066", "#ff5d5d", "#c77dff", "#56cfe1", "#e63946", "#80ed99", "#a0c4ff", "#ff8c42", "#f9c74f", "#ff70a6"];
 const PALETTES = [
@@ -1382,11 +1385,10 @@ const RATINGS = {
   questionable: { name: "세미 수위", pos: "rating_questionable", ill: "questionable", neg: "explicit, rating_explicit, school uniform" },
   explicit: { name: "성인 전용", pos: "rating_explicit", ill: "nsfw, explicit", neg: "school uniform" }
 };
-function imgRating(want = S.settings.adultImgRating) { return ageOK() && RATINGS[want] ? want : "safe"; }
-const RATING_ORDER = ["safe", "questionable", "explicit"];
-const higherRating = (a, b) => (RATING_ORDER.indexOf(b) > RATING_ORDER.indexOf(a) ? b : a) || "safe";
-/* 시트별 그림 수위(이미지 슬롯은 작품 id, 세계관 일러스트는 "w:" + id). 고른 적 없으면 설정의 기본 수위 */
-function sheetRating(key) { return imgRating((S.settings.sheetRatings || {})[key] || S.settings.adultImgRating); }
+/* AI 그림 수위는 기본 전체이용가. 세미·성인은 성인 확인 뒤 직접 만든 칸의 수위나 시트·생성 창에서 고를 때만 */
+function imgRating(want = "safe") { return ageOK() && RATINGS[want] ? want : "safe"; }
+/* 시트별 그림 수위(이미지 슬롯의 기본 칸은 작품 id, 세계관 일러스트는 "w:" + id). 고른 적 없으면 전체이용가 */
+function sheetRating(key) { return imgRating((S.settings.sheetRatings || {})[key]); }
 function setSheetRating(key, v) { S.settings.sheetRatings = { ...(S.settings.sheetRatings || {}), [key]: v }; saveSettings(); }
 /* 수위 고르기 칸: 성인 확인 전·claude.ai 안에서는 전체이용가로 잠그고 이유를 보여 줌 */
 function ratingFieldHTML(id, cur, label = "수위") {
@@ -1853,7 +1855,7 @@ const S = {
   profile: { nick: "" }, mine: [], rooms: [], community: [], imgpacks: {}, coverpacks: {}, lorepacks: {},
   settings: { fs: 15.5, chatLh: 1.8, narrFont: "serif", enterSend: true, sceneImg: true, apiKey: "", runwareKey: "", customSits: [], imgModel: IMG_MODELS[0].id, imgStyle: "webtoon", imgStyleCustom: "", styleRefs: [], styleSets: [], styleV2: true, memCfg: { auto: true, every: 5, limit: 3000, guide: "auto", custom: "" },
     // 성인 모드: 자기 확인(isAgeVerified) 전에는 모두 꺼진 것과 같음. contentFilter false면 모든 대화방이 성인 모드
-    isAgeVerified: false, contentFilter: true, autoFallback: true, openRouterKey: "", unfilteredModels: { ...OR_TIER }, customUnfilteredModel: "", adultImgRating: "safe" },
+    isAgeVerified: false, contentFilter: true, autoFallback: true, openRouterKey: "", unfilteredModels: { ...OR_TIER }, customUnfilteredModel: "" },
   engine: "pending", cat: "전체", q: ""
 };
 let SAMPLE = null, samplePromise = null, DB = null, DOWNLOADS = null;
@@ -2048,6 +2050,8 @@ function garbled(t) {
   const s = String(t), cnt = (re) => (s.match(re) || []).length;
   const ko = cnt(/[가-힣]/g), kana = cnt(/[぀-ヿ]/g), han = cnt(/[一-鿿]/g);
   if (kana >= 6 || (han > 12 && han > ko * 0.2) || (s.length > 300 && ko < s.length * 0.2)) return true;
+  // 한국어 사이에 끼어든 중국어 문장: 중국어 문장부호가 붙은 한자, 또는 한자 10자 이상 연속(무협 한자 병기는 보통 4~8자)
+  if (/[一-鿿][。，！？；：]|[。，][一-鿿]|[一-鿿]{10,}/.test(s)) return true;
   return cnt(/[a-z]{2,}[A-Z][a-z]{2,}|\w+\.(?:cpp|js|py|h|java)\b|[A-Za-z]+_[A-Za-z]*/g) + cnt(/[가-힣][a-z]{3,}|[a-z]{3,}[가-힣]/g)
     + cnt(/[가-힣][一-鿿]|[一-鿿][가-힣]/g) + cnt(/\b(?=[a-z]*\d)(?=\d*[a-z])[a-z\d]{6,}\b/gi) >= 2;
 }
@@ -2167,7 +2171,7 @@ function relStage(c, s) {
 }
 /* 성인 모드 수위 항목: unfilteredRoute(r)일 때만(=OpenRouter로 갈 때만) 들어감. 나머지 규칙·서사 원칙·출력 형식은 두 모드가 같음 */
 const ADULT_RULE = "모든 등장인물은 법적 성인(20세 이상)이다. 성인 인증이 완료된 세션이므로 검열, 도덕적 훈계, 암전, 생략 없이 인물의 욕망, 감정선, 농밀한 신체적 접촉과 성적 상호작용을 웹소설 문체로 구체적이고 사실적이며 몰입감 있게 묘사한다.\n- 미성년자이거나 미성년자로 보이는 인물(학생 신분, 아이 같은 외모·말투 포함)은 어떤 경우에도 성적으로 묘사하지 않는다. 그런 방향의 요청은 따르지 않고 이야기를 다른 쪽으로 돌린다.";
-function rulesPrompt(r, lore = []) {
+function rulesPrompt(r, lore = [], hist = r.msgs) {
   const c = r.char, p = r.persona, len = LEN[r.set.len] || LEN.mid;
   const fields = c.fields.map((f) => `"${f}":${f === c.gauge && typeof r.status?.[f] === "number" ? "0~100 정수" : '"짧은 값"'}`).join(",");
   const seen = new Set(); r.msgs.forEach((m) => imgTags(curText(m)).forEach((t) => seen.add(t.code)));
@@ -2197,7 +2201,9 @@ ${lore.length ? "\n[키워드북 — 이번 장면에 나온 키워드의 설정
 [연기 규칙]
 - 유저 캐릭터(${p.name})의 대사·행동·속마음을 대신 쓰거나 결정하지 않는다. 유저가 한 행동의 결과와 다른 인물·세계의 반응만 쓴다.
 - 서술(행동·표정·풍경)은 *별표*로 감싸고 대사는 "큰따옴표"로 쓴다. 서술과 대사는 줄을 바꿔 구분한다.${c.world_mode ? "\n- 여러 인물이 말할 때는 대사 앞에 이름을 붙인다. 예: 한서윤: \"...\"\n- 시스템 메시지는 [대괄호] 한 줄로 쓴다." : ""}
-- 분량은 ${len.chars}. 매 턴 장면을 한 걸음 진전시키고, 직전 턴과 같은 표현·전개를 반복하지 않는다. 오감 묘사와 구체적 디테일을 쓴다.
+- 분량은 본문 ${len.chars}(상태 JSON 제외). 모자라면 장면을 서둘러 끝내지 말고 대화를 더 주고받아 채운다. 지문은 한 단락 1~3문장으로 짧게 끊고 대사와 번갈아 쓴다. 오감 묘사와 구체적 디테일을 쓴다.
+- 대화 중심: 본문의 절반 이상을 대사로 채우고 대사를 ${len.lines}줄 이상 넣는다. 대사 → 짧은 행동·표정 → 다음 대사로 이어 가며 인물이 묻고·떠보고·반박하고·농담한다. 장면에 다른 인물이 있으면 그들끼리도 말을 주고받는다. 한 인물이 혼자 길게 연설하지 않는다. 응답은 유저가 바로 대답하고 싶어지는 대사(질문·제안·도발)로 끝낸다.
+- 반복 금지: 직전 응답들에서 쓴 문장 첫머리·비유·묘사·말버릇·감탄사를 다시 쓰지 않는다. 이미 알려진 정보와 상황을 다시 설명하지 않는다.
 - 인물에게는 의지와 기분이 있다. 무례·거짓말·방치에는 현실적으로 반응한다. 쉽게 넘어오지 않는다.
 - ${unfilteredRoute(r) ? ADULT_RULE : "모든 등장인물은 성인이다. 성적인 장면은 노골적으로 묘사하지 않고 암전·장면 전환으로 넘긴다."}
 - 유저 입력이 // 로 시작하면 이야기 밖에서 작가에게 주는 연출 지시다. 반영해서 장면을 쓰되 인물이 그 지시를 말하게 하지 않는다.
@@ -2210,8 +2216,10 @@ ${lore.length ? "\n[키워드북 — 이번 장면에 나온 키워드의 설정
 - 내면: 인물마다 욕망·두려움·상처가 있고 그것이 선택을 만든다. 감정은 이름 붙여 설명하지 말고 행동·망설임·말끝·몸의 반응·삼킨 말로 보여 준다. 대사에는 말하지 않은 속뜻을 담는다.
 - 감정의 축적: 관계는 장면이 쌓여서 변한다. 신뢰는 대가를 치른 행동으로 얻고, 상처는 사과 한 번으로 아물지 않는다. 감정이 터지는 순간에는 속도를 늦추고 손끝·소리·물건 같은 작은 디테일 하나에 무게를 싣는다.
 - 떡밥: 장기기억의 미해결 떡밥·약속 가운데 지금 장면과 닿는 것을 자연스럽게 다시 건드린다. 새 떡밥은 나중에 회수할 수 있는 것만 심는다.
+- 진전: 매 응답에 새로운 것을 하나 이상 넣는다(새 정보·새 갈등·관계 변화·장소나 시간 이동·인물의 결정). 쓰기 전에 속으로 '지금까지 일어난 일 → 이번에 새로 일어날 일 → 다음에 열어 둘 질문'을 정리하되, 그 정리는 출력하지 않는다.
 - 장면 설계: 매 응답은 '인물이 지금 원하는 것 → 그것을 막는 것 → 달라진 상황'으로 움직이고, 유저가 반응하지 않을 수 없는 순간(질문·선택·위기·고백)에서 멈춘다.${c.world_mode ? "\n- 군상극: 인물마다 자기 목적과 일정이 있고 서로 동맹·질투·부채로 얽혀 있다. 유저가 없는 곳에서도 세력은 움직이고 그 결과가 유저에게 돌아온다. 히로인들은 유저만 바라보는 인형이 아니다. 한 장면에 너무 많은 인물을 몰아넣지 않는다." : ""}${relStage(c, r.status)}
 
+${(() => { const used = usedOpeners(hist); return used.length ? `\n[이미 쓴 문장 — 이렇게 시작하거나 같은 묘사를 되풀이하지 않는다]\n${used.map((s) => "- " + s + "…").join("\n")}\n` : ""; })()}
 [장면 이미지]
 - 그림을 넣으려면 본문 중 별도 줄에 [[img:코드:번호]] 만 쓴다. 설명을 덧붙이지 않는다.
 - 인물 코드: ${castLine}
@@ -2228,17 +2236,31 @@ ${lore.length ? "\n[키워드북 — 이번 장면에 나온 키워드의 설정
 - suggestions: 유저(${p.name})가 다음에 할 만한 행동이나 대사 3개. 서로 다른 방향(다정·도발·신중 등), 각 35자 이내, 유저 시점.`;
 }
 function curText(m) { return m.role === "ai" ? (m.alts[m.idx] || {}).text || "" : m.text; }
+/* 최근 AI 응답 2개의 단락 첫머리(앞 24자): 모델이 같은 시작·묘사를 되풀이하지 않게 rulesPrompt에 보여 줌. 시스템 메시지([…])는 형식이라 뺌 */
+function usedOpeners(hist) {
+  const out = [];
+  for (const m of hist.filter((x) => x.role === "ai" && curText(x)).slice(-2))
+    for (const p of curText(m).split(/\n+/)) {
+      const t = p.replace(/\[\[img:[^\]]*\]\]/g, "").trim();
+      if (t.startsWith("[")) continue;
+      const s = t.replace(/^[^:"“*]{1,14}:\s*/, "").replace(/^[*"“\s]+/, "").replace(/[*"”\s]+$/, "").trim();
+      if (s.length >= 8) out.push(s.slice(0, 24));
+    }
+  return [...new Set(out)].slice(-12);
+}
 function buildInput(r, uptoIdx, statusBefore, direction) {
   const hist = r.msgs.slice(0, uptoIdx).filter((m) => curText(m));
   const recent = hist.slice(-(r.set.mem * 2 + 1));
   const lore = matchLore(getChar(r.char.id)?.lore || r.char.lore, recent.slice(-3).map((m) => (m.role === "ai" ? curText(m) : m.text) || ""));
-  const out = [{ role: "user", content: rulesPrompt(r, lore) }];
+  const len = LEN[r.set.len] || LEN.mid;
+  const out = [{ role: "user", content: rulesPrompt(r, lore, hist) }];
   out.lore = lore.map((e) => e.keys[0]);
   recent.forEach((m, i) => {
     const last = i === recent.length - 1;
     if (m.role === "ai") { out.push({ role: "assistant", content: curText(m) }); return; }
     let t = m.sys ? "// 직전 장면에서 자연스럽게 이어서 다음 장면을 써라. 유저의 행동은 쓰지 않는다." : m.text;
-    if (last) t = `[현재 상태창 — 이번 장면은 여기서 출발한다]\n${JSON.stringify(statusBefore || {})}\n\n[${r.persona.name}의 입력]\n${t}${direction ? "\n\n// 다시 쓰기 지침: " + direction : ""}`;
+    // 분량·대화·새 전개 지시는 시스템 프롬프트에도 있지만, 모델이 가장 잘 따르는 마지막 입력 옆에 한 번 더
+    if (last) t = `[현재 상태창 — 이번 장면은 여기서 출발한다]\n${JSON.stringify(statusBefore || {})}\n\n[${r.persona.name}의 입력]\n${t}${direction ? "\n\n// 다시 쓰기 지침: " + direction : ""}\n\n[이번 응답] 위 입력을 본문에 다시 옮겨 적지 말고 그 직후의 반응부터 쓴다. 본문 ${len.chars}, 대사 ${len.lines}줄 이상을 주고받고, 직전 응답과 다른 새 전개를 넣는다.`;
     out.push({ role: "user", content: t });
   });
   return out;
@@ -2608,9 +2630,13 @@ function liveFill(el, text, c, persona, anim = true) {
   // 이름만 쓰인 상태(곧 "이름: 대사"가 될 수 있음)는 잠깐 숨겨 서식이 바뀌어 보이지 않게
   cur.innerHTML = /^[^\s:*"“\[]{1,14}$/.test(last.trim()) ? "" : fmt(closeOpen(last), c, persona);
 }
-/* 응답 중 스크롤: 맨 아래에 있을 때만 따라 내려가고, 사용자가 위로 올리면 멈춤 */
+/* 응답 중 스크롤: 대화방 출력 설정의 '자동 스크롤'(r.set.autoScroll, 기본 꺼짐)이 켜져 있고 맨 아래에 있을 때만 따라 내려감.
+   사용자가 위로 올리면 멈춤. 꺼져 있으면 보낼 때 한 번만 맨 아래로 가고, 답은 읽는 자리에서 아래로 자라남 */
 let stick = true;
-function followLog() { const log = $("#log"); if (log && stick) log.scrollTop = log.scrollHeight; }
+const autoScroll = () => !!(room && room.set.autoScroll);
+function followLog() { const log = $("#log"); if (log && stick && autoScroll()) log.scrollTop = log.scrollHeight; syncJump(); }
+// 글이 늘어나는 것만으로는 scroll 이벤트가 안 나서 '맨 아래로' 버튼을 따로 맞춤
+function syncJump() { const log = $("#log"), jump = log && $("#jumpBtn", log); if (jump) jump.hidden = log.scrollHeight - log.scrollTop - log.clientHeight < 160; }
 function bindStick(log) {
   if (!log) return;
   stick = true; let ty = 0;
@@ -2747,6 +2773,15 @@ async function regen(i, direction = "") {
   room.msgs = room.msgs.slice(0, i + 1);
   generate(room.msgs[i], q, direction);
 }
+/* 모델이 유저 입력을 본문 첫 줄에 다시 옮겨 적으면(조금 바꿔 쓴 것 포함, 글자 2개씩 묶어 70% 이상 같으면) 그 줄을 뺌 */
+function dropEcho(body, said) {
+  const m = /^\s*([^\n]+)\n/.exec(body); if (!m || !said) return body;
+  const norm = (s) => s.replace(/[\s*"“”'‘’.,!?…~]/g, ""), a = norm(m[1]), b = norm(said);
+  if (a.length < 6 || b.length < 6 || a.length > b.length * 1.3 + 4) return body;
+  const grams = (s) => { const g = new Set(); for (let i = 0; i < s.length - 1; i++) g.add(s.slice(i, i + 2)); return g; };
+  const ga = grams(a), gb = grams(b); let hit = 0; ga.forEach((g) => { if (gb.has(g)) hit++; });
+  return hit / ga.size >= 0.7 ? body.slice(m[0].length).replace(/^\s+/, "") : body;
+}
 /* target 없으면 새 AI 메시지, 있으면 그 메시지에 새 버전(alt) 추가 */
 async function generate(target, q, direction = "", isEdit = false) {
   const r = room, c = r.char, model = r.set.model;
@@ -2762,18 +2797,20 @@ async function generate(target, q, direction = "", isEdit = false) {
   charge(q, label);
   const ctl = new AbortController();
   gen = { ctl, msgId: msg.id };
+  hideSug(); // 추천 답변은 '✦ AI 추천'을 눌렀을 때만 펼침
   stick = true; renderLog(true); updateComposer();
+  const said = (() => { const u = r.msgs[r.msgs.indexOf(msg) - 1]; return u && u.role === "user" && !u.sys && !u.text.startsWith("//") ? u.text : ""; })();
   const show = (t) => {
     // 화면엔 본문만: 상태 구분자가 오기 시작했거나(=== STATE 일부) JSON·코드블록 줄이 시작되면 그 줄부터 숨김
-    const body = splitReply(t).body.replace(/\n?[ \t]*=+[ \t]*[A-Z]*[ \t]*=*\s*$/, "").replace(/\n[ \t]*(?:```|\{)[^\n]*$/, "").replace(/\[\[[^\]]*$/, "");
+    const body = dropEcho(splitReply(t).body, said).replace(/\n?[ \t]*=+[ \t]*[A-Z]*[ \t]*=*\s*$/, "").replace(/\n[ \t]*(?:```|\{)[^\n]*$/, "").replace(/\[\[[^\]]*$/, "");
     msg.alts[altIdx].text = body.trim();
     if (room !== r) return;
     const el = $("#liveBubble");
     if (el) { liveFill(el, msg.alts[altIdx].text, c, r.persona); IMG.hydrate(el); followLog(); }
-    else renderLog(stick);
+    else { renderLog(stick && autoScroll()); syncJump(); }
   };
   try {
-    const text = await llm(input, { tier: MODELS[model].tier, signal: ctl.signal, onText: ({ text }) => show(text), maxTokens: { short: 1200, mid: 2000, long: 3200 }[r.set.len], room: r });
+    const text = await llm(input, { tier: MODELS[model].tier, signal: ctl.signal, onText: ({ text }) => show(text), maxTokens: (LEN[r.set.len] || LEN.mid).tokens, room: r });
     show(text);
     const parsed = parseState(text, c, msg.statusBefore);
     Object.assign(msg.alts[altIdx], parsed, { text: msg.alts[altIdx].text || "(빈 응답)", cost: qShort(q), lore: input.lore });
@@ -2792,9 +2829,7 @@ async function generate(target, q, direction = "", isEdit = false) {
     gen = null;
     saveRoom(r);
     if (room === r && $("#logInner")) {
-      renderLog(stick); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true });
-      // 응답과 함께 온 추천 답변을 바로 펼침 (추가 호출 없음)
-      if (r.set.sugAuto !== false && msg === lastAi(r) && msg.alts[msg.idx]?.suggestions?.length && $("#sugPanel")?.hidden) { toggleSug(); followLog(); }
+      renderLog(stick && autoScroll()); syncJump(); updateComposer(); updateMeter(); $("#inp")?.focus({ preventScroll: true });
     }
     maybeSummarize(r);
   }
@@ -3171,7 +3206,7 @@ function openRoomDrawer(view = "main") {
         <div class="setcard"><h4>출력량</h4><p class="d">캐릭터가 한 번에 얼마나 길게 답할지 정해요.</p>
           <div class="seg">${Object.entries(LEN).map(([k, l]) => `<button data-len="${k}" class="${s.len === k ? "on" : ""}">${l.name}<small>${l.chars}</small></button>`).join("")}</div><div class="res">${LEN[s.len].desc}</div></div>
         <div class="setcard"><div class="toggle"><div><h4>리롤 지침</h4><p class="d" style="margin:4px 0 0">다시 쓰기를 누르면 방향을 적는 창을 띄워요.</p></div><input type="checkbox" id="rr" ${s.rerollAsk ? "checked" : ""}></div></div>
-        <div class="setcard"><div class="toggle"><div><h4>추천 답변 바로 보기</h4><p class="d" style="margin:4px 0 0">응답이 끝나면 이어갈 행동·대사 3개를 입력창 위에 바로 펼쳐요. 응답과 함께 만들어져서 비용이 더 들지 않아요.</p></div><input type="checkbox" id="sa" ${s.sugAuto !== false ? "checked" : ""}></div></div>
+        <div class="setcard"><div class="toggle"><div><h4>자동 스크롤</h4><p class="d" style="margin:4px 0 0">켜면 답이 써지는 동안 화면이 맨 아래를 따라 내려가요. 끄면 보낼 때 한 번만 내려가고, 답은 읽는 속도에 맞춰 직접 내려 보면 돼요.</p></div><input type="checkbox" id="as" ${s.autoScroll ? "checked" : ""}></div></div>
         ${ageOK() ? `<div class="setcard"><div class="toggle"><div><h4>🔞 이 대화방에서 성인 무검열 서사 허용</h4><p class="d" style="margin:4px 0 0">${hasOpenRouterKey() ? "켜면 이 대화방은 OpenRouter 모델로 수위 제한 없이 써요." : "MY → 설정에 OpenRouter API 키를 넣어야 적용돼요."}${!S.settings.contentFilter ? " 지금은 설정에서 기본 수위 제한을 해제해 둬서 모든 대화방에 적용 중이에요." : ""} 미성년 인물·암시가 있는 턴은 수위와 상관없이 보호 모드로 써요.</p></div><input type="checkbox" id="au" ${s.allowUnfiltered ? "checked" : ""}></div></div>` : ""}
         <div class="setcard"><h4>예상 비용</h4><table class="tbl"><tbody>${Object.keys(MODELS).map((k) => { const qq = quote({ ...s, model: k }); return `<tr><td>${MODELS[k].name}${k === s.model ? ' <span class="pill">사용 중</span>' : ""}</td><td class="num">${qq.type === "free" ? "무료 (" + freeLeft() + "턴 남음)" : qq.type === "plus" ? "PLUS 무제한" : "♥" + qq.n + " / 턴"}</td></tr>`; }).join("")}</tbody></table></div>
         <button class="btn pri block" id="oSave" style="margin-top:12px">저장 · 지금 모델 턴당 ${qShort(q2)}</button>`;
@@ -3180,7 +3215,7 @@ function openRoomDrawer(view = "main") {
       $$("[data-len]", body).forEach((b) => b.onclick = () => { s.len = b.dataset.len; paint(); });
       $("#rr", body).onchange = (e) => { s.rerollAsk = e.target.checked; };
       const au = $("#au", body); if (au) au.onchange = (e) => { s.allowUnfiltered = e.target.checked; };
-      $("#oSave", body).onclick = () => { r.set = { ...r.set, ...s, rerollAsk: $("#rr", body).checked, sugAuto: $("#sa", body).checked }; saveRoom(r); updateComposer(); toast("출력 설정을 저장했어요"); openRoomDrawer("main"); };
+      $("#oSave", body).onclick = () => { r.set = { ...r.set, ...s, rerollAsk: $("#rr", body).checked, autoScroll: $("#as", body).checked }; delete r.set.sugAuto; saveRoom(r); updateComposer(); toast("출력 설정을 저장했어요"); openRoomDrawer("main"); };
     };
     paint();
   }
@@ -3240,8 +3275,8 @@ function openImageSlots(c, code) {
   const persist = () => { if (mine) { KV.set("mine", S.mine); if (mine.publish) publishCommunity(); } else KV.set("imgpacks", S.imgpacks); };
   const put = async (file, sit, code = cur) => { const ref = await IMG.put(file); const m = store()[code] || {}; IMG.drop(m[sit]); m[sit] = ref; store()[code] = m; };
   const prompt = (cast, i) => buildPonyPrompt(cast, i, c);
-  // 이 작품의 수위와 칸의 수위 중 높은 쪽(성인 칸은 작품 수위가 낮아도 그 칸 수위로)
-  const slotRating = (i) => higherRating(sheetRating(c.id), sitDef(i)?.rating || "safe");
+  // 직접 만든 칸은 그 칸의 수위(19금 칸만 성인 태그), 기본 칸(0~14)은 이 작품 수위(기본 전체이용가)
+  const slotRating = (i) => { const d = sitDef(i); return d ? imgRating(d.rating) : sheetRating(c.id); };
   let live = null, bulk = null;
   const paint = () => {
     const cast = c.cast.find((x) => x.code === cur), slots = imagesOf(c)[cur] || {};
@@ -3249,7 +3284,7 @@ function openImageSlots(c, code) {
       <p class="sub">대화 속 장면마다 이 칸의 이미지가 보여요. 빈 칸은 프로필 이미지로 대신해요.${mine ? "" : " 이미지는 내 계정에만 저장돼요."}</p>
       <div class="casttabs chips">${c.cast.map((x) => `<button class="chip ${x.code === cur ? "on" : ""}" data-cc="${esc(x.code)}">${esc(x.name)} <small>${esc(x.code)}</small></button>`).join("")}</div>
       <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><button class="btn sm" id="addSit">+ 칸 추가</button><button class="btn sm" id="recSit">추천 칸</button><button class="btn sm" id="listSit">목록으로 추가</button><span class="note">파일 이름을 2.png처럼 칸 번호로 지으면 그 칸에 들어가요.</span></div>
-      ${ratingFieldHTML("slotRt", sheetRating(c.id), "이 작품 그림 수위 (AI 버튼·빈 칸 채우기)")}
+      ${ratingFieldHTML("slotRt", sheetRating(c.id), "기본 칸(0~14) 그림 수위 — 직접 만든 칸은 그 칸의 수위로 만들어요")}
       <div class="slot-grid">${slotNums().map((i) => { const ref = validRef(slots[i]) ? slots[i] : null, d = sitDef(i); return `<div class="slot"><div class="pic${bulk && bulk.code === cur && bulk.at === i ? " busy" : ""}">${ref ? IMG.tag(ref) : artHTML(c, cast, i)}</div><span class="lb">${i} ${esc(sitName(i))}${d && d.rating !== "safe" ? " 🔞" : ""}${i === 0 ? " <small>첫 등장</small>" : ""}</span><div class="bs"><button data-up="${i}">${ref ? "바꾸기" : "올리기"}</button><button data-ai="${i}">AI</button>${ref ? `<button data-rm="${i}">삭제</button>` : ""}${d ? `<button data-ed="${i}">고치기</button>` : ""}</div></div>`; }).join("")}</div>
       <input type="file" id="one" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="many" accept="image/png,image/jpeg,image/webp" multiple hidden>
       <p class="note" style="margin-top:12px">AI 버튼은 설정의 Runware 키로 그려요. 같은 인물로 그리려면 작품의 '이미지 출연진' 외모를 자세히 적어 주세요.</p>`, "wide");
@@ -3731,8 +3766,8 @@ function viewMe() {
         <div class="toggle"><label for="ageChk">만 19세 이상이에요 (자기 확인)</label><input type="checkbox" id="ageChk" ${S.settings.isAgeVerified ? "checked" : ""}></div>
         <div class="toggle"><label for="unfilterChk">모든 대화방 수위 제한 해제</label><input type="checkbox" id="unfilterChk" ${!S.settings.contentFilter ? "checked" : ""}></div>
         <div class="toggle"><label for="fallbackChk">Claude가 거절하면 OpenRouter로 이어 쓰기</label><input type="checkbox" id="fallbackChk" ${S.settings.autoFallback ? "checked" : ""}></div>
-        <div class="field" style="margin:0"><label for="imgRatingSel">이미지 기본 수위</label><select id="imgRatingSel">${Object.entries(RATINGS).map(([k, v]) => `<option value="${k}" ${S.settings.adultImgRating === k ? "selected" : ""}>${esc(v.name)} (${k})</option>`).join("")}</select></div>
-        <p class="d" style="margin:0">OpenRouter 키가 있어야 동작해요. 미성년 인물·암시는 항상 막아요. 이 체크는 본인인증이 아니에요.</p></div>`}
+        <p class="d" style="margin:0">OpenRouter 키가 있어야 동작해요. 미성년 인물·암시는 항상 막아요. 이 체크는 본인인증이 아니에요.</p>
+        <p class="d" style="margin:6px 0 0">AI 그림은 전체이용가로 만들어요. 이미지 슬롯에서 세미·성인 수위로 직접 만든 칸만 그 칸의 수위로 자동으로 만들어요.</p></div>`}
       ${IN_CLAUDE ? "" : `<div class="two">
         <div class="field"><label for="orkey">OpenRouter API 키 <span class="note">성인 모드용</span></label><input id="orkey" type="password" autocomplete="off" placeholder="sk-or-..." value="${esc(S.settings.openRouterKey || "")}"></div>
         <div class="field"><label for="ormodel">무검열 모델</label><select id="ormodel">${(() => { const cur = String(S.settings.customUnfilteredModel || "").trim(), pre = OR_PRESETS.some((m) => m[0] === cur);
@@ -3838,7 +3873,7 @@ function viewMe() {
   $("#cImg").onchange = (e) => chatSet("sceneImg", e.target.checked);
   // 성인 인증을 체크해야 수위 해제 옵션을 고를 수 있음
   const age = $("#ageChk");
-  if (age) { const sync = () => ["#unfilterChk", "#fallbackChk", "#imgRatingSel"].forEach((s) => $(s).disabled = !age.checked); age.onchange = sync; sync(); }
+  if (age) { const sync = () => ["#unfilterChk", "#fallbackChk"].forEach((s) => $(s).disabled = !age.checked); age.onchange = sync; sync(); }
   const orm = $("#ormodel");
   if (orm) orm.onchange = () => { $("#ormodelBox").hidden = orm.value !== "custom"; if (orm.value === "custom") $("#ormodelTxt").focus(); };
   $("#setSave").onclick = () => {
@@ -3846,7 +3881,6 @@ function viewMe() {
     S.settings.runwareKey = $("#rkey").value.trim(); saveStyle();
     if (age) {
       S.settings.isAgeVerified = age.checked; S.settings.contentFilter = !$("#unfilterChk").checked; S.settings.autoFallback = $("#fallbackChk").checked;
-      S.settings.adultImgRating = $("#imgRatingSel").value;
       S.settings.openRouterKey = $("#orkey").value.trim();
       S.settings.customUnfilteredModel = orm.value === "custom" ? $("#ormodelTxt").value.trim() : orm.value;
     }
@@ -3933,7 +3967,8 @@ async function loadAll() {
 }
 async function boot() {
   try { const s = JSON.parse(localStorage.getItem("hv1_settings") || "null"); if (s) S.settings = { ...S.settings, ...s, memCfg: { ...S.settings.memCfg, ...(s.memCfg || {}) }, unfilteredModels: { ...OR_TIER } }; // 등급별 모델은 화면에서 고치지 않으므로 늘 코드의 OR_TIER
-    if (!RATINGS[S.settings.adultImgRating]) S.settings.adultImgRating = "safe";
+    // AI 그림 기본 수위가 전체이용가로 바뀜(2026-11): 예전 전체 기본 수위와 작품별로 골라 둔 수위를 한 번 비움
+    if (!S.settings.imgSafeDefault) { delete S.settings.adultImgRating; S.settings.sheetRatings = {}; S.settings.imgSafeDefault = true; saveSettings(); }
     if (typeof S.settings.openRouterKey !== "string") S.settings.openRouterKey = "";
     const orKey = S.settings.openRouterKey; cleanKeys(); if (orKey !== S.settings.openRouterKey) saveSettings();
     // 그림체를 아직 고른 적 없는 이전 설정은 웹소설 표지 세미리얼로 한 번 옮김

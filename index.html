@@ -1072,8 +1072,13 @@ const CFG = Object.assign({ anthropicUrl: ANTHROPIC_URL, runwareUrl: "https://ap
 const hasClaudeKey = () => !!S.settings.apiKey || !!CFG.serverKeys;
 const hasRunwareKey = () => !!S.settings.runwareKey || !!CFG.serverKeys;
 const hasOpenRouterKey = () => !!S.settings.openRouterKey || !!CFG.serverKeys;
-/* 성인 모드(OpenRouter) 등급별 모델: 라이트=quick, 스토리=default, 마스터=complex */
-const OR_TIER = { quick: "thedrummer/rocinante-12b", default: "nousresearch/hermes-3-llama-3.1-70b", complex: "anthracite-org/magnum-v4-72b" };
+/* 성인 모드(OpenRouter) 등급별 모델: 라이트=quick, 스토리=default, 마스터=complex.
+   마스터는 DeepSeek V3 — Magnum V4 72B(제공자 Mancer 하나)는 2026-11 시험에서 한국어가 깨지거나(3/3) 같은 줄을 되풀이하고 상태창을 안 쓰며 한 턴에 2분 걸려 뺌(직접 입력으로는 고를 수 있음) */
+const OR_TIER = { quick: "thedrummer/rocinante-12b", default: "nousresearch/hermes-3-llama-3.1-70b", complex: "deepseek/deepseek-chat-v3-0324" };
+// 샘플링을 안 보내면 제공자 기본값(높은 temperature)으로 한국어가 일본어·중국어·코드 조각으로 깨짐 → 늘 보냄(모르는 값은 OpenRouter가 뺌)
+const OR_SAMPLING = { temperature: 0.8, top_p: 0.92, min_p: 0.05, repetition_penalty: 1.05 };
+// 그림 태그 번역: 지시를 잘 따르는 순서. Hermes 3는 머리색 같은 없는 외모를 지어내서 쓰지 않음
+const OR_TAG_MODELS = ["deepseek/deepseek-chat-v3-0324", "thedrummer/unslopnemo-12b"];
 // 등급 모델을 OpenRouter가 못 줄 때(제공자 없음 등) 한 번 대신 쓰는 모델. Rocinante 12B는 2026-10 기준 제공자가 없음
 const OR_BACKUP = { quick: "thedrummer/unslopnemo-12b" };
 const OR_PRESETS = [["deepseek/deepseek-chat-v3-0324", "DeepSeek V3"], ["nousresearch/hermes-3-llama-3.1-70b", "Hermes 3 70B"], ["anthracite-org/magnum-v4-72b", "Magnum V4 72B"], ["meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B"]];
@@ -1373,8 +1378,9 @@ const NEG_MINOR = "child, loli, shota, underage, toddler, aged down";
 /* 이미지 수위: 성인 확인(ageOK) 전·claude.ai 안에서는 항상 safe. pos는 Pony용, ill은 Illustrious용 rating 태그, neg는 그 수위에서 막을 태그 */
 const RATINGS = {
   safe: { name: "전체이용가", pos: "rating_safe", ill: "general", neg: "nsfw, nude, explicit, questionable, rating_explicit, rating_questionable" },
-  questionable: { name: "세미 수위", pos: "rating_questionable, nsfw, adult, mature", ill: "questionable, nsfw, adult, mature", neg: "explicit, rating_explicit, school uniform" },
-  explicit: { name: "성인 전용", pos: "rating_explicit, nsfw, adult, mature", ill: "explicit, nsfw, adult, mature", neg: "school uniform" }
+  // 수위 태그는 짧게: nsfw·mature를 겹쳐 넣으면 모델이 프롬프트(표정·외모)보다 노출 쪽으로 끌려가 다른 인물처럼 그림(2026-11)
+  questionable: { name: "세미 수위", pos: "rating_questionable", ill: "questionable", neg: "explicit, rating_explicit, school uniform" },
+  explicit: { name: "성인 전용", pos: "rating_explicit", ill: "nsfw, explicit", neg: "school uniform" }
 };
 function imgRating(want = S.settings.adultImgRating) { return ageOK() && RATINGS[want] ? want : "safe"; }
 const RATING_ORDER = ["safe", "questionable", "explicit"];
@@ -1425,7 +1431,7 @@ function castLook(cast, c) {
 }
 /* 직접 추가하는 이미지 칸(S.settings.customSits = [{n, name, prompt, rating}]): 모든 인물에 공통, 번호는 15부터.
    성인 수위 칸은 성인 확인(ageOK) 때만 보이고, 대화에서는 성인 경로(unfilteredRoute)일 때만 AI에게 알려 줌 */
-const CUSTOM_BASE = SIT.length, CUSTOM_MAX = 45;
+const CUSTOM_BASE = SIT.length, CUSTOM_MAX = 60;
 function sitDef(n) { return n >= CUSTOM_BASE ? (S.settings.customSits || []).find((d) => d.n === n) || null : null; }
 function sitName(n) { return SIT[n] || sitDef(n)?.name || "칸 " + n; }
 function customSits() { return (S.settings.customSits || []).filter((d) => d.rating === "safe" || ageOK()); }
@@ -1450,6 +1456,13 @@ function slotParts(cast, i, c) {
   ];
 }
 function buildPonyPrompt(cast, i, c) { return slotParts(cast, i, c).flatMap((p) => p.tags).join(", "); }
+/* 묶음별로 영문 태그로 바꿔 이어 붙임. 인물(외모) 묶음은 수위와 상관없이 같은 번역(같은 인물로 보이게) */
+async function partsTags(parts, adult) {
+  if (adult && minorHint(parts.flatMap((g) => g.tags).join(", "))) throw { code: "minor_block" };
+  const out = [];
+  for (const g of parts) out.push(await ponyTags(g.tags.join(", "), g.key === "look" ? false : adult));
+  return out.filter(Boolean).join(", ");
+}
 /* 칸을 지우면 모든 인물에 저장된 그 칸의 그림도 지움 */
 function dropSitImages(n) {
   const clean = (images) => Object.values(images || {}).forEach((m) => { if (m && m[n]) { IMG.drop(m[n]); delete m[n]; } });
@@ -1508,6 +1521,59 @@ function sitPresetSheet(after) {
     toast(picked.length > space ? `${space}칸만 추가했어요(최대 ${CUSTOM_MAX}칸)` : `${picked.length}칸을 추가했어요`);
   };
 }
+/* 목록 글 → 칸 후보. 한 줄에 하나: "이름", "이름=번호", "번호 = 이름", "이름 | 프롬프트". 번호는 무시하고(15번부터 차례로) 프롬프트가 없으면 이름을 씀(만들 때 번역됨) */
+function parseSitList(text) {
+  const base = new Set(SIT), have = new Set((S.settings.customSits || []).map((d) => d.name)), seen = new Set(), out = [];
+  for (const raw of String(text || "").split(/\r?\n/)) {
+    let [name, prompt] = raw.split("|").map((x) => x.trim());
+    name = (name || "").replace(/^\s*\d+\s*[=:.)]\s*/, "").replace(/\s*[=:]\s*\d+\s*$/, "").trim();
+    if (!name || name.length > 12 || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, prompt: prompt || name, dup: base.has(name) || have.has(name) });
+  }
+  return out;
+}
+/* 목록으로 칸 여러 개 추가: 글을 붙여 넣거나 .txt를 고르면 칸 후보를 보여 주고, 고른 것만 한 수위로 추가 */
+function sitListSheet(after) {
+  const ov = document.createElement("div"); ov.className = "overlay gen-ov";
+  ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>목록으로 칸 추가</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
+    <p class="sub" style="margin-top:0">한 줄에 칸 하나. "키스", "키스=18", "18 = 키스", "키스 | 프롬프트" 모두 돼요. 번호는 15번부터 차례로 다시 매기고, 프롬프트가 없으면 칸 이름을 영문 태그로 바꿔 써요.</p>
+    <div class="field"><label for="slt">칸 목록</label><textarea id="slt" maxlength="4000" style="min-height:120px" placeholder="예:\n카페 데이트\n비 오는 날 | 비에 젖은 머리, 투명 우산"></textarea></div>
+    <div class="cta-row" style="margin-top:6px"><button class="btn sm" id="slf" type="button">.txt 파일 불러오기</button><input type="file" id="slfile" accept=".txt,text/plain" hidden></div>
+    ${ratingFieldHTML("slr", "safe", "추가할 칸의 수위")}
+    <div id="slpv"></div>
+    <div class="cta-row"><span class="note" id="slc"></span><span class="spacer"></span><button class="btn ghost" data-x>취소</button><button class="btn pri" id="sladd" disabled>추가</button></div></div>`;
+  document.body.append(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-x]")) close(); });
+  let items = [];
+  const paint = () => {
+    items = parseSitList($("#slt", ov).value);
+    $("#slpv", ov).innerHTML = items.length ? `<div class="tgroup"><span class="lbl">추가할 칸 (누르면 빼기)</span><div class="tchips">${items.map((d, i) => `<label class="tchip pick${d.dup ? "" : " on"}"><input type="checkbox" data-sl="${i}" ${d.dup ? "disabled" : "checked"}> ${esc(d.name)}${d.dup ? " <small>이미 있음</small>" : ""}</label>`).join("")}</div></div>` : "";
+    $$("[data-sl]", ov).forEach((b) => b.onchange = () => { b.parentElement.classList.toggle("on", b.checked); count(); });
+    count();
+  };
+  const count = () => { const n = $$("[data-sl]", ov).filter((b) => b.checked).length, space = CUSTOM_MAX - S.settings.customSits.length; $("#slc", ov).textContent = n ? `${n}칸 · 남은 자리 ${space}칸` : ""; $("#sladd", ov).disabled = !n; };
+  $("#slt", ov).oninput = paint;
+  $("#slf", ov).onclick = () => $("#slfile", ov).click();
+  $("#slfile", ov).onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const buf = await f.arrayBuffer();
+    let t; try { t = new TextDecoder("utf-8", { fatal: true }).decode(buf); } catch { t = new TextDecoder("euc-kr").decode(buf); }
+    $("#slt", ov).value = t.slice(0, 4000); paint();
+  };
+  $("#sladd", ov).onclick = () => {
+    const rating = $("#slr", ov).value || "safe", list = S.settings.customSits;
+    const picked = $$("[data-sl]", ov).filter((b) => b.checked).map((b) => items[+b.dataset.sl]);
+    const ok = picked.filter((d) => rating === "safe" || !minorHint(d.name + "\n" + d.prompt)), blocked = picked.length - ok.length;
+    const space = CUSTOM_MAX - list.length;
+    if (space <= 0) { toast(`칸은 ${CUSTOM_MAX}개까지 추가할 수 있어요.`); return; }
+    for (const d of ok.slice(0, space)) { let n = CUSTOM_BASE; while (list.some((x) => x.n === n)) n++; list.push({ n, name: d.name, prompt: d.prompt, rating }); }
+    saveSettings(); close(); after && after();
+    const added = Math.min(ok.length, space);
+    toast(`${added}칸을 추가했어요${ok.length > space ? ` · 자리가 없어 ${ok.length - space}칸은 빠졌어요(최대 ${CUSTOM_MAX}칸)` : ""}${blocked ? ` · 미성년으로 보이는 표현이 있는 ${blocked}칸은 뺐어요` : ""}`);
+  };
+}
 /* 직접 추가하는 칸 만들기·고치기. 슬롯 시트 위에 겹쳐 뜸 */
 function sitEditor(def, after) {
   const ov = document.createElement("div"); ov.className = "overlay gen-ov";
@@ -1515,7 +1581,7 @@ function sitEditor(def, after) {
     <p class="sub" style="margin-top:0">모든 인물에 같은 칸이 생기고, 대화 중 AI가 이 칸의 그림을 넣을 수 있어요.</p>
     <div class="field"><label for="snm">칸 이름</label><input id="snm" maxlength="12" value="${esc(def?.name || "")}" placeholder="예: 수영복, 잠옷, 비 오는 날"></div>
     <div class="field"><label for="spr">프롬프트 <span class="note">한국어로 써도 돼요 · 인물 외모는 자동으로 붙어요</span></label><textarea id="spr" maxlength="600" style="min-height:90px" placeholder="예: 비에 젖은 머리, 투명 우산, 밤거리 네온">${esc(def?.prompt || "")}</textarea></div>
-    ${ageOK() ? `<div class="field"><label for="srt">수위</label><select id="srt">${Object.entries(RATINGS).map(([k, v]) => `<option value="${k}" ${(def?.rating || "safe") === k ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select><p class="note" style="margin:2px 0 0">성인 수위 칸은 성인 모드 대화방에서만 쓰여요. 미성년으로 보이는 표현은 막아요.</p></div>` : ""}
+    ${ratingFieldHTML("srt", def?.rating || "safe")}${ageOK() ? `<p class="note" style="margin:-6px 0 0">성인 수위 칸은 성인 모드 대화방에서만 쓰여요. 미성년으로 보이는 표현은 막아요.</p>` : ""}
     <div class="cta-row">${def ? `<button class="btn danger" id="sdel">삭제</button>` : ""}<span class="spacer"></span><button class="btn ghost" data-x>취소</button><button class="btn pri" id="ssv">저장</button></div></div>`;
   document.body.append(ov);
   const close = () => ov.remove();
@@ -1557,12 +1623,13 @@ async function ponyTags(text, adult = false) {
 let TAGS = {};
 async function koTags(t, adult = false) {
   adult = adult && ageOK() && hasOpenRouterKey();
-  const key = "3|" + (adult ? "A:" : "") + t; // 3|: 인원·성별·no humans 지시를 더한 뒤의 번역(예전 캐시는 안 씀)
+  const key = "4|" + (adult ? "A:" : "") + t; // 4|: 성인 번역을 DeepSeek로 바꾼 뒤(예전 라이트 모델 번역은 엉뚱한 머리색 등이 섞여 안 씀)
   if (TAGS[key]) return TAGS[key];
   const strip = () => t.replace(/[^\s,]*[가-힣][^\s,]*/g, " ").split(",").map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
   try { await waitEngine(); } catch {}
   if (S.engine === "none" && !adult && !hasOpenRouterKey()) return strip();
   try {
+    // 지시는 시스템(첫 메시지), 번역할 글은 유저 메시지로 — 지시와 글이 한 메시지면 OpenRouter 모델이 엉뚱한 글을 씀
     const msgs = [{ role: "user", content: `다음 그림 설명을 SDXL 그림 모델(Pony·Illustrious)용 영문 Danbooru 태그로 바꿔라.
 - 영문 소문자 태그를 쉼표로만 이어 한 줄로 출력한다. 설명·따옴표·번호 없이 태그만.
 - 원문 순서를 따른다.
@@ -1570,13 +1637,16 @@ async function koTags(t, adult = false) {
 - 인물이 나오고 성별을 알 수 있으면 인원·성별 태그(1girl, 1boy, 2girls, 1boy 1girl 처럼)를 맨 앞에 넣고, 남자만 나오면 male focus도 넣는다.
 - 설명 전체에 사람이 없고 동물·식물·풍경·사물만 있으면 no humans를 넣는다(동물이 주인공이면 animal focus도). 옷·소품·머리 모양처럼 인물의 일부만 설명하는 조각에는 넣지 않는다.
 - 고유명사(작품·인물·장소 이름)는 빼고 외모·의상·표정·자세·장소·조명·분위기만 남긴다.
-- 원문에 없는 표정·감정·자세 태그는 덧붙이지 않는다(예: '날카로운 눈매'는 sharp eyes일 뿐 serious expression이 아니다). 표정은 다른 칸에서 정한다.
-
-${t}` }];
-    let out = S.engine !== "none" || adult ? await llm(msgs, { tier: "quick", maxTokens: 500, adult }).catch(() => null) : null;
-    // 번역은 지시를 잘 따르는 스토리 등급 모델로(라이트 등급 롤플레이 모델은 엉뚱한 태그를 섞음)
-    if (out == null && hasOpenRouterKey()) out = await openRouterStream(msgs, { tier: "default", maxTokens: 500 }).catch(() => null);
-    const tags = String(out || "").replace(/\n+/g, ", ").replace(/["'`]/g, "").split(",").map((x) => x.replace(/\s+/g, " ").trim())
+- 원문에 없는 표정·감정·자세 태그는 덧붙이지 않는다(예: '날카로운 눈매'는 sharp eyes일 뿐 serious expression이 아니다). 원문에 없는 머리색·옷도 지어내지 않는다.` }, { role: "user", content: t }];
+    // 성인 수위는 Claude를 거치지 않고 OpenRouter로. 일반은 Claude → 안 되면 OpenRouter
+    const usable = (o) => (o != null && /[a-z]/i.test(o) && !hasHangul(o) ? o : null); // 빈 답·태그가 아닌 답이면 다음으로
+    let out = !adult && S.engine !== "none" ? usable(await llm(msgs, { tier: "quick", maxTokens: 500 }).catch(() => null)) : null;
+    for (const model of OR_TAG_MODELS) {
+      if (out != null || !hasOpenRouterKey()) break;
+      out = usable(await openRouterStream(msgs, { model, maxTokens: 300, sampling: { temperature: 0.2, top_p: 0.9 }, retry: false }).catch(() => null));
+    }
+    const tags = String(out || "").replace(/\n+/g, ", ").replace(/["'`]/g, "").split(",").map((x) => x.replace(/_/g, " ").replace(/\s+/g, " ").trim())
+      .filter((x) => x.length <= 40 && /^[a-z0-9 .:;!?&+\/()'-]+$/i.test(x)) // 태그가 아닌 조각(코드·다른 글자) 빼기
       .filter((x, i, a) => x && a.indexOf(x) === i && !/\b(young|younger|teen|teenage|child|kid|loli|shota|petite|little)\b/i.test(x)) // 중복·어려 보이게 하는 태그는 빼고
       .slice(0, 24).join(", "); // 모델이 같은 태그를 되풀이해도 그림 프롬프트를 잡아먹지 않게 24개까지
     if (!tags || hasHangul(tags)) return strip();
@@ -1608,9 +1678,12 @@ const SUBJ = {
 function fixSubject(tags, subj) {
   const bare = (t) => t.toLowerCase().replace(/^\((.+):\d(?:\.\d+)?\)$/, "$1").trim();
   const list = splitTags(tags), strong = new Set(list.filter((t) => t.startsWith("(")).map(bare)), seen = new Set();
+  const boyTag = list.some((t) => /\b\d*boys?\b/.test(bare(t)));
   const out = list.filter((t) => {
     const k = bare(t), low = t.toLowerCase();
     if ((!t.startsWith("(") && strong.has(k)) || seen.has(low) || (subj !== "none" && (k === "no humans" || k === "animal focus"))) return false;
+    if (subj !== "male" && !boyTag && k === "male focus") return false; // 여자 그림에 번역이 잘못 붙인 male focus
+
     seen.add(low); return true;
   });
   if (subj === "male" && !out.some((t) => bare(t) === "male focus")) out.splice(out.findIndex((t) => /\b\d*boys?\b/.test(bare(t))) + 1, 0, "male focus");
@@ -1738,13 +1811,15 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", parts
     if (focusGroup != null) $(`[data-ag="${focusGroup}"]`, ov)?.focus();
   };
   paintTags();
-  // 묶음 순서대로 영문 태그로: 강조(★) 태그는 하나씩 번역해 "(태그:1.3)"로, 나머지는 묶음째 번역
+  // 묶음 순서대로 영문 태그로: 강조(★) 태그는 하나씩 번역해 "(태그:1.3)"로, 나머지는 묶음째 번역.
+  // 인물(외모) 묶음은 수위와 상관없이 같은 길로 번역 — 수위마다 번역이 달라 머리색·옷이 바뀌던 문제
   const buildPrompt = async (adult) => {
     const out = [];
     for (const g of groups) {
-      for (const x of g.tags.filter((y) => y.strong)) out.push(...splitTags(await ponyTags(x.t, adult)).map((t) => /[():]/.test(t) ? t : `(${t}:1.3)`));
+      const ad = g.key === "look" ? false : adult;
+      for (const x of g.tags.filter((y) => y.strong)) out.push(...splitTags(await ponyTags(x.t, ad)).map((t) => /[():]/.test(t) ? t : `(${t}:1.3)`));
       const plain = g.tags.filter((y) => !y.strong).map((y) => y.t);
-      if (plain.length) out.push(await ponyTags(plain.join(", "), adult));
+      if (plain.length) out.push(await ponyTags(plain.join(", "), ad));
     }
     return out.filter(Boolean).join(", ");
   };
@@ -1967,8 +2042,18 @@ async function byok(messages, { tier, onText, signal, json, maxTokens }) {
   if (json) { const v = looseJSON(text); if (v === undefined) throw { code: "invalid_json", text }; return v; }
   return text;
 }
-/* OpenRouter(OpenAI 호환 SSE). 메시지 모양(첫 메시지 = 시스템, 같은 역할 이어 붙이기)과 json 처리는 byok와 같음 */
-async function openRouterStream(messages, { tier, onText, signal, json, maxTokens }) {
+/* 깨진 응답 알아보기: 일본어 가나·한자가 많이 섞이거나 한글이 거의 없거나, 이상한 조각이 2개 이상
+   (camelCase·파일 이름·밑줄 낱말, 한글에 바로 붙은 소문자 영어·한자, 숫자 섞인 영문 덩어리 — 2026-11 실제로 나온 깨진 응답들로 맞춤) */
+function garbled(t) {
+  const s = String(t), cnt = (re) => (s.match(re) || []).length;
+  const ko = cnt(/[가-힣]/g), kana = cnt(/[぀-ヿ]/g), han = cnt(/[一-鿿]/g);
+  if (kana >= 6 || (han > 12 && han > ko * 0.2) || (s.length > 300 && ko < s.length * 0.2)) return true;
+  return cnt(/[a-z]{2,}[A-Z][a-z]{2,}|\w+\.(?:cpp|js|py|h|java)\b|[A-Za-z]+_[A-Za-z]*/g) + cnt(/[가-힣][a-z]{3,}|[a-z]{3,}[가-힣]/g)
+    + cnt(/[가-힣][一-鿿]|[一-鿿][가-힣]/g) + cnt(/\b(?=[a-z]*\d)(?=\d*[a-z])[a-z\d]{6,}\b/gi) >= 2;
+}
+/* OpenRouter(OpenAI 호환 SSE). 메시지 모양(첫 메시지 = 시스템, 같은 역할 이어 붙이기)과 json 처리는 byok와 같음.
+   model을 주면 등급 대신 그 모델, sampling은 샘플링 값. 대화 요청(시스템에 MARK)의 본문이 깨지면 멈추고 temperature를 낮춰 한 번 다시 씀 */
+async function openRouterStream(messages, { tier, onText, signal, json, maxTokens, model: pinned = "", sampling = OR_SAMPLING, retry = true }) {
   if (!hasOpenRouterKey()) throw { code: "no_or_key" };
   const rest = [];
   for (const m of messages.slice(1)) {
@@ -1976,14 +2061,17 @@ async function openRouterStream(messages, { tier, onText, signal, json, maxToken
     if (last && last.role === m.role) last.content += "\n\n" + m.content; else rest.push({ role: m.role, content: m.content });
   }
   if (!rest.length || rest[0].role !== "user") rest.unshift({ role: "user", content: "(시작)" });
-  let model = orModel(tier), res;
+  // 롤플레이 모델은 긴 시스템 지시의 출력 형식을 잊음 → 대화 요청이면 마지막 유저 메시지 끝에 형식을 한 번 더(2026-11 시험: 없으면 상태창을 안 씀)
+  const chat = !json && messages[0].content.includes(MARK), shape = chat ? (/^\{"status".*$/m.exec(messages[0].content) || [])[0] : "";
+  if (shape && rest[rest.length - 1].role === "user") rest[rest.length - 1].content += `\n\n[출력 형식 — 반드시 지킨다]\n1) 한국어 장면 본문\n2) 한 줄에 ${MARK}\n3) JSON 한 개: ${shape}`;
+  let model = pinned || orModel(tier), res;
   for (let tries = 0; tries < 2; tries++) {
     try {
       res = await fetch(CFG.openRouterUrl, {
         method: "POST", signal,
         headers: { "content-type": "application/json", ...(S.settings.openRouterKey ? { authorization: "Bearer " + S.settings.openRouterKey } : {}),
           "HTTP-Referer": location.origin !== "null" ? location.origin : "https://heartverse.app", "X-Title": "HEARTVERSE" },
-        body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, messages: [{ role: "system", content: messages[0].content }, ...rest] })
+        body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, ...sampling, messages: [{ role: "system", content: messages[0].content }, ...rest] })
       });
     } catch (e) { if (e.name === "AbortError") throw { code: "cancelled" }; throw { code: "or_network" }; }
     if (res.ok) break;
@@ -1995,7 +2083,7 @@ async function openRouterStream(messages, { tier, onText, signal, json, maxToken
     if (code === "or_bad_model" && tries === 0 && backup && model !== backup && !String(S.settings.customUnfilteredModel || "").trim()) { model = backup; continue; }
     throw { code, msg };
   }
-  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "", text = "", fin = false, err = null;
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "", text = "", fin = false, err = null, bad = false, checked = 0;
   try {
     while (!fin) {
       const { value, done } = await reader.read(); if (done) break;
@@ -2010,9 +2098,18 @@ async function openRouterStream(messages, { tier, onText, signal, json, maxToken
         if (ev.error) { err = ev.error; fin = true; break; }
         const delta = ev.choices?.[0]?.delta?.content;
         if (delta) { text += delta; onText?.({ text, delta }); }
+        // 본문이 깨지기 시작하면 바로 멈춤(100자마다 검사)
+        if (chat && text.length >= 120 && text.length - checked >= 100) { checked = text.length; if (garbled(splitReply(text).body)) { bad = fin = true; break; } }
       }
     }
   } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "upstream_error", text }; }
+  if (!bad && chat && text.length >= 40 && garbled(splitReply(text).body)) bad = true;
+  if (bad) {
+    try { reader.cancel(); } catch {}
+    onText?.({ text: "", delta: "" }); // 화면의 깨진 글을 지움
+    if (retry) return openRouterStream(messages, { tier, onText, signal, json, maxTokens, model, sampling: { ...sampling, temperature: 0.6 }, retry: false });
+    throw { code: "garbled", text };
+  }
   if (err) throw { code: "upstream_error", text, msg: String(err.message || "") };
   if (json) { const v = looseJSON(text); if (v === undefined) throw { code: "invalid_json", text }; return v; }
   return text;
@@ -2036,6 +2133,7 @@ function errCopy(e) {
     case "or_bad_key": return "OpenRouter API 키가 올바르지 않아요. MY → 설정에서 확인해 주세요.";
     case "or_no_funds": return "OpenRouter 크레딧이 부족해요. openrouter.ai에서 충전해 주세요. 하트는 돌려드렸어요.";
     case "or_bad_model": return "OpenRouter 모델을 찾을 수 없어요. MY → 설정에서 무검열 모델을 확인해 주세요.";
+    case "garbled": return "모델 응답이 깨져서(다른 언어·코드 조각이 섞임) 쓰지 않았어요. 다시 보내거나 AI 모델에서 다른 등급을 골라 주세요.";
     case "or_network": return "OpenRouter에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.";
     case "session_expired": return "로그인이 만료됐어요. 페이지를 새로고침해 주세요.";
     case "sampling_disabled": case "capability_disabled": return "이 계정에서는 AI 호출이 꺼져 있어요.";
@@ -2500,6 +2598,7 @@ function liveFill(el, text, c, persona, anim = true) {
   let done = el.querySelector(".lv-done"), cur = el.querySelector(".lv-cur");
   if (!done) { el.innerHTML = `<div class="lv-done"></div><div class="lv-cur"></div>`; done = el.firstChild; cur = el.lastChild; el.dataset.n = "0"; }
   const lines = text.split("\n"), last = lines.pop(), n = +(el.dataset.n || 0);
+  if (lines.length < n) { el.innerHTML = ""; return liveFill(el, text, c, persona, anim); } // 글이 처음부터 다시 오면(깨진 응답을 다시 쓸 때) 비우고 새로
   if (lines.length > n) {
     const before = done.children.length;
     done.insertAdjacentHTML("beforeend", fmt(lines.slice(n).join("\n"), c, persona));
@@ -2707,7 +2806,10 @@ function splitReply(t) {
   let i = t.indexOf(MARK), len = MARK.length;
   if (i < 0) { const m = /\n[ \t]*={2,}[ \t]*STATE[ \t]*={2,}[ \t]*/i.exec(t); if (m) { i = m.index; len = m[0].length; } }
   if (i < 0) { const m = /\n[ \t]*(?:```(?:json)?\s*)?\{\s*"status"\s*:/.exec(t); if (m) { i = m.index; len = 0; } }
-  return i < 0 ? { body: t, json: "" } : { body: t.slice(0, i), json: t.slice(i + len) };
+  if (i < 0) return { body: t, json: "" };
+  // JSON 뒤에 붙은 장면 그림 태그는 본문으로 옮김(일부 OpenRouter 모델이 맨 끝에 씀)
+  const json = t.slice(i + len), late = json.match(/\[\[img:[^\]\n]+\]\]/g) || [];
+  return { body: t.slice(0, i) + (late.length ? "\n\n" + late.join("\n") : ""), json: late.length ? json.replace(/\*?\[\[img:[^\]\n]+\]\]\*?/g, "") : json };
 }
 /* 토큰 한도 등으로 중간에 끊긴 JSON 복구: 열린 문자열·괄호를 닫고, 값 없이 끝난 키나 쉼표는 버림 */
 function repairJSON(s) {
@@ -2734,7 +2836,8 @@ function multiPairs(v, strict = true) {
   const out = [];
   for (const p of v.split(/\s*[·,|/]\s*/).filter(Boolean)) {
     const m = (strict ? /^(.+?)\s*[:：]?\s*(-?\d+)\s*$/ : /^(.+?)\s*[:：]?\s*(-?\d+)/).exec(p.trim());
-    if (m) out.push([m[1].trim(), Number(m[2])]); else if (strict) return [];
+    // 이름에 숫자가 아닌 글자가 있어야 인물 수치("60/100"을 "6 0 · 1 0"으로 읽던 문제)
+    if (m && /[^\d\s.+%-]/.test(m[1])) out.push([m[1].trim(), Number(m[2])]); else if (strict) return [];
   }
   return out;
 }
@@ -2767,7 +2870,7 @@ function parseState(text, c, before) {
       out.status[c.gauge] = Number.isFinite(g) ? clamp(Math.round(clamp(g, prev - 10, prev + 8)), 0, 100) : prev;
     }
   }
-  if (Array.isArray(v.suggestions)) out.suggestions = v.suggestions.filter((s) => typeof s === "string").map((s) => s.slice(0, 80)).slice(0, 3);
+  if (Array.isArray(v.suggestions)) out.suggestions = v.suggestions.filter((s) => typeof s === "string").map((s) => s.replace(/^\s*\d+[.)]\s*/, "").slice(0, 80)).filter(Boolean).slice(0, 3);
   return out;
 }
 
@@ -3145,7 +3248,7 @@ function openImageSlots(c, code) {
     const ov = sheet(`<div class="sheet-head"><h2>이미지 슬롯</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
       <p class="sub">대화 속 장면마다 이 칸의 이미지가 보여요. 빈 칸은 프로필 이미지로 대신해요.${mine ? "" : " 이미지는 내 계정에만 저장돼요."}</p>
       <div class="casttabs chips">${c.cast.map((x) => `<button class="chip ${x.code === cur ? "on" : ""}" data-cc="${esc(x.code)}">${esc(x.name)} <small>${esc(x.code)}</small></button>`).join("")}</div>
-      <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><button class="btn sm" id="addSit">+ 칸 추가</button><button class="btn sm" id="recSit">추천 칸</button><span class="note">파일 이름을 2.png처럼 칸 번호로 지으면 그 칸에 들어가요.</span></div>
+      <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><button class="btn sm" id="addSit">+ 칸 추가</button><button class="btn sm" id="recSit">추천 칸</button><button class="btn sm" id="listSit">목록으로 추가</button><span class="note">파일 이름을 2.png처럼 칸 번호로 지으면 그 칸에 들어가요.</span></div>
       ${ratingFieldHTML("slotRt", sheetRating(c.id), "이 작품 그림 수위 (AI 버튼·빈 칸 채우기)")}
       <div class="slot-grid">${slotNums().map((i) => { const ref = validRef(slots[i]) ? slots[i] : null, d = sitDef(i); return `<div class="slot"><div class="pic${bulk && bulk.code === cur && bulk.at === i ? " busy" : ""}">${ref ? IMG.tag(ref) : artHTML(c, cast, i)}</div><span class="lb">${i} ${esc(sitName(i))}${d && d.rating !== "safe" ? " 🔞" : ""}${i === 0 ? " <small>첫 등장</small>" : ""}</span><div class="bs"><button data-up="${i}">${ref ? "바꾸기" : "올리기"}</button><button data-ai="${i}">AI</button>${ref ? `<button data-rm="${i}">삭제</button>` : ""}${d ? `<button data-ed="${i}">고치기</button>` : ""}</div></div>`; }).join("")}</div>
       <input type="file" id="one" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="many" accept="image/png,image/jpeg,image/webp" multiple hidden>
@@ -3164,6 +3267,7 @@ function openImageSlots(c, code) {
     const rs = $("#slotRt", ov); if (rs) rs.onchange = () => setSheetRating(c.id, rs.value);
     $("#addSit", ov).onclick = () => sitEditor(null, paint);
     $("#recSit", ov).onclick = () => sitPresetSheet(paint);
+    $("#listSit", ov).onclick = () => sitListSheet(paint);
     $("#aiAll", ov).onclick = async () => {
       if (bulk) { bulk.stop = true; return; }
       if (!hasRunwareKey()) { toast(genErr({ code: "no_key" })); return; }
@@ -3173,7 +3277,7 @@ function openImageSlots(c, code) {
       for (const i of todo) {
         if (bulk.stop) break;
         bulk.at = i; if (live?.isConnected) paint(); toast(`AI로 채우는 중… ${ok + 1}/${todo.length}`);
-        try { await put(await runwareImage(prompt(ca, i), { aspect: "4:5", rating: slotRating(i) }), i, code); persist(); ok++; }
+        try { const rt = imgRating(slotRating(i)); await put(await runwareImage(await partsTags(slotParts(ca, i, c), rt !== "safe"), { aspect: "4:5", rating: rt }), i, code); persist(); ok++; }
         catch (e) { err = e; if (["no_key", "bad_key", "no_funds", "bad_model", "network", "rate_limited", "minor_block"].includes(e?.code)) break; }
       }
       const stopped = bulk.stop; bulk = null; if (live?.isConnected) paint();
@@ -3632,7 +3736,7 @@ function viewMe() {
       ${IN_CLAUDE ? "" : `<div class="two">
         <div class="field"><label for="orkey">OpenRouter API 키 <span class="note">성인 모드용</span></label><input id="orkey" type="password" autocomplete="off" placeholder="sk-or-..." value="${esc(S.settings.openRouterKey || "")}"></div>
         <div class="field"><label for="ormodel">무검열 모델</label><select id="ormodel">${(() => { const cur = String(S.settings.customUnfilteredModel || "").trim(), pre = OR_PRESETS.some((m) => m[0] === cur);
-          return [["", "등급별 자동 (Rocinante · Hermes 3 · Magnum)"], ...OR_PRESETS, ["custom", "직접 입력"]].map(([k, l]) => `<option value="${esc(k)}" ${(k === "custom" ? cur && !pre : k === cur) ? "selected" : ""}>${esc(l)}</option>`).join(""); })()}</select></div>
+          return [["", "등급별 자동 (Rocinante · Hermes 3 · DeepSeek V3)"], ...OR_PRESETS, ["custom", "직접 입력"]].map(([k, l]) => `<option value="${esc(k)}" ${(k === "custom" ? cur && !pre : k === cur) ? "selected" : ""}>${esc(l)}</option>`).join(""); })()}</select></div>
       </div>
       <div class="field" id="ormodelBox" ${String(S.settings.customUnfilteredModel || "").trim() && !OR_PRESETS.some((m) => m[0] === S.settings.customUnfilteredModel.trim()) ? "" : "hidden"}><label for="ormodelTxt">OpenRouter 모델 ID</label><input id="ormodelTxt" maxlength="120" autocomplete="off" placeholder="예: deepseek/deepseek-chat-v3-0324" value="${esc(S.settings.customUnfilteredModel || "")}"></div>`}
     </div>

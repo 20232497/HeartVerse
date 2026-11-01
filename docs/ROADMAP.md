@@ -29,6 +29,8 @@
 
 ## 3. 다음 단계(권장 순서)
 
+> 상용화 기준으로 다시 정리한 순서(로그인 → 서버 AI·하트 → 결제 → 운영)와 구성은 [COMMERCIALIZATION.md](COMMERCIALIZATION.md)에 있습니다. 아래는 그 전에 세운 기술 단계입니다.
+
 1. **번들 빌드 도입** — `src/`(core·data·ui) → esbuild로 단일 index.html. 첫 이전 대상은 순수 함수(`splitReply`·`repairJSON`·`mergeMulti`·`parseState`·`rulesPrompt`·`matchLore`)와 그 단위 테스트.
 2. **서버 프록시(BFF)** — `HEARTVERSE_CONFIG`로 연결(`anthropicUrl`·`runwareUrl`·`openRouterUrl`). 키 은닉, 레이트 리밋, 입·출력 모더레이션. 성인 모드를 출시한다면 연령 확인 결과(`adult_verified`)도 서버가 판단해 성인 경로를 열고 닫아야 함.
 3. **인증 + 서버 원장 + DB** — 하트·무료 턴·PLUS를 서버 트랜잭션으로(가이드 5-1 스키마 참고). 차감·실패 환불을 서버에서.

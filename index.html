@@ -416,6 +416,20 @@ details.stat[open] summary::after { content:"▴"; }
 .gen-ov { z-index:45; }
 .gen-pv { margin-top:12px; min-height:120px; border:1px dashed var(--line); border-radius:12px; display:flex; align-items:center; justify-content:center; padding:10px; text-align:center; }
 .gen-pv img { max-width:100%; max-height:52vh; border-radius:10px; display:block; }
+.tgroup + .tgroup { margin-top:10px; }
+.tgroup .lbl { display:block; margin-bottom:5px; }
+.tchips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tchip { display:inline-flex; align-items:center; max-width:100%; border:1px solid var(--line); background:var(--bg); border-radius:999px; font-size:13px; }
+.tchip button { border:0; background:none; color:inherit; font:inherit; padding:5px 3px 5px 11px; overflow-wrap:anywhere; text-align:left; }
+.tchip .tx { padding:5px 10px 5px 4px; color:var(--muted); }
+.tchip.on { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); font-weight:600; }
+.tadd { border:1px dashed var(--line); background:none; color:var(--fg); border-radius:999px; padding:5px 11px; font-size:13px; width:8.5em; outline:none; }
+.tadd:focus { border-color:var(--accent); width:12em; }
+.gen-auto { margin-top:6px; }
+.gen-auto summary { cursor:pointer; color:var(--muted); font-size:12.5px; }
+.gen-auto p { margin:4px 0 0; }
+.tchip.pick { padding:5px 11px; gap:5px; cursor:pointer; }
+.tchip.pick input { accent-color:var(--accent); margin:0; }
 .slot .bs button { border:1px solid var(--line); background:var(--bg); border-radius:7px; font-size:11.5px; padding:2px 7px; }
 .casttabs { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:10px; }
 .wgal { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:10px; }
@@ -1261,8 +1275,8 @@ function shrink(file, max, q, asBlob) {
    이름·설명은 한국어. 모델은 영문 태그만 알아들으므로 한글(외모·키워드북·직접 쓴 그림체)은 보내기 직전 ponyTags()가 영문 태그로 바꿈 */
 /* 이미지 모델(Runware AIR). arch마다 품질 태그·수위 태그·CFG가 다름. 모두 Runware에서 실제 생성 확인(2026-10) */
 const IMG_MODELS = [
-  // 세미리얼은 CFG를 낮추고 플라스틱·인형 같은 피부를 막아야 자연스러움(2026-10 비교 생성으로 정함)
-  { id: "civitai:548016@861939", name: "세미리얼 PonyXL (Run七八造 v2)", arch: "pony", cfg: 4.5, neg: "3d, cgi, plastic skin, doll, airbrushed, oversaturated, heavy makeup" },
+  // 세미리얼은 CFG 7이면 인형처럼 인위적, 4.5면 표정을 안 따름 → 6 + 플라스틱·인형 피부 네거티브(2026-10·11 비교 생성으로 정함)
+  { id: "civitai:548016@861939", name: "세미리얼 PonyXL (Run七八造 v2)", arch: "pony", cfg: 6, neg: "3d, cgi, plastic skin, doll, airbrushed, oversaturated, heavy makeup" },
   { id: "civitai:142601@686323", name: "한국 웹툰 PonyXL (ToonyStark)", arch: "pony" },
   { id: "civitai:827184@1761560", name: "애니 일러스트 (WAI Illustrious v14)", arch: "illustrious" },
   // Pony Diffusion V6 XL(Civitai 257749·버전 290640)은 Runware 자체 호스팅 ID "imagerouter:"로만 불러짐
@@ -1290,7 +1304,6 @@ function styleLabel() { const s = activeSet(); return s ? "세트 · " + s.name 
 function imgStyleText() { const s = activeSet(); return (s ? s.prompt || "" : S.settings.imgStyle === "custom" ? S.settings.imgStyleCustom || "" : stylePreset().tags).trim(); }
 /* 지금 그림체가 쓰는 모델: 프리셋은 고정, 세트·직접 입력은 고른 모델 */
 function imgModelId() { const s = activeSet(); return (s ? s.model : stylePreset().model) || S.settings.imgModel || IMG_MODELS[0].id; }
-function styled(fallback) { return imgStyleText() || fallback; }
 function styleOptionsHTML() {
   const cur = S.settings.imgStyle;
   return [...Object.entries(IMG_STYLES).map(([k, p]) => [k, p.name]), ...(S.settings.styleSets || []).map((s) => ["set:" + s.id, "세트 · " + s.name])]
@@ -1339,7 +1352,7 @@ function guessStylePrompt(name) { return (animeName(name) ? IMG_STYLES.anime : I
 function guessStyleModel(name) { return (animeName(name) ? IMG_STYLES.anime : IMG_STYLES.webtoon).model; }
 /* 표지 프롬프트: 세계관 작품은 히로인들이 모인 단체 표지, 1인 작품은 주인공 중심 */
 function coverPrompt(c) {
-  const cast = (c.cast || []).filter((x) => x.name), base = [styled(""), "cinematic composition"]; // "cover art"는 제목 글자를 그려 넣어서 뺌
+  const cast = (c.cast || []).filter((x) => x.name), base = ["cinematic composition"]; // "cover art"는 제목 글자를 그려 넣어서 뺌
   if (c.world_mode && cast.length > 1) {
     const pick = cast.slice(0, 3); // SDXL은 3명이 넘으면 얼굴·몸이 뭉개져서 앞의 3명만
     const f = pick.filter((x) => /여성|여자|\bfemale\b|\bgirl/i.test(x.look || "")).length, m = pick.filter((x) => /남성|남자|\bmale\b|\bboy/i.test(x.look || "")).length;
@@ -1360,24 +1373,28 @@ const RATINGS = {
   explicit: { name: "성인 전용", pos: "rating_explicit, nsfw, adult, mature", ill: "explicit, nsfw, adult, mature", neg: "school uniform" }
 };
 function imgRating(want = S.settings.adultImgRating) { return ageOK() && RATINGS[want] ? want : "safe"; }
-/* 상황 번호(SIT 0~14) → Pony 표정·자세 태그 */
+/* 상황 번호(SIT 0~14) → 표정·자세 태그(Danbooru). 프롬프트 맨 앞(장면 자리)에 들어가야 모델이 따름 */
 const SIT_PONY_TAGS = [
-  "portrait, upper body, looking at viewer, face focus",            // 0 프로필
-  "neutral expression, upper body, looking at viewer",              // 1 기본
-  "smile, happy, laughing, expressive eyes",                        // 2 웃음
-  "blushing, embarrassed, shy, looking down, flustered",            // 3 부끄러움
-  "crying, tears, sad, heartbreak, distressed face",                // 4 슬픔
-  "surprised, wide eyes, open mouth, shocked, gasping",             // 5 놀람
-  "angry, furious, clenched teeth, glaring, furrowed brow",         // 6 분노
-  "pouting, annoyed, looking away, cheeks puffed, crossed arms",    // 7 삐침
-  "scared, terrified, pale, trembling, wide eyes, fear",            // 8 공포
-  "injured, bandage, wounded, blood on skin, exhausted, ragged",    // 9 부상
-  "relief, gentle smile, magical glow, sparkling, recovered",       // 10 회복
-  "sleeping, eyes closed, resting, lying down, peaceful",           // 11 휴식
-  "fighting stance, battle ready, intense eyes, weapon, dynamic",   // 12 공격
-  "glowing eyes, power aura, magical energy, floating hair, epic",  // 13 각성
-  "heart eyes, romantic blush, loving gaze, gentle smile"           // 14 설렘
+  "portrait, upper body, looking at viewer, light smile",                  // 0 프로필
+  "neutral expression, closed mouth, upper body, looking at viewer",       // 1 기본
+  "smile, open mouth, :d, laughing, closed eyes, happy",                   // 2 웃음
+  "blush, embarrassed, shy, looking away, hand on own cheek, nose blush",  // 3 부끄러움
+  "crying, streaming tears, sad, frown, looking down",                     // 4 슬픔
+  "surprised, wide-eyed, open mouth, :o, shocked",                         // 5 놀람
+  "angry, furious, clenched teeth, glaring, v-shaped eyebrows",            // 6 분노
+  "pout, puffy cheeks, annoyed, looking away, crossed arms",               // 7 삐침
+  "scared, frightened, trembling, wide-eyed, sweat",                       // 8 공포
+  "injured, bandages, bruise, blood on face, exhausted, torn clothes",     // 9 부상
+  "relieved, gentle smile, soft light, sparkle",                           // 10 회복
+  "sleeping, closed eyes, lying down, peaceful, pillow",                   // 11 휴식
+  "fighting stance, attacking, action pose, intense eyes, motion blur",    // 12 공격
+  "glowing eyes, aura, magic, floating hair, power",                       // 13 각성
+  "blush, loving gaze, gentle smile, hands on own chest"                   // 14 설렘
 ];
+// 싸우는 장면(0 프로필·9 부상·12 공격·13 각성)이 아니면 외모의 무기를 뺌 — 무기가 있으면 모든 칸이 같은 무기 든 자세로 끌려감
+const COMBAT_SITS = [0, 9, 12, 13];
+const WEAPON_RE = /레이피어|장검|단검|대검|검$|칼$|비수|창$|활$|권총|리볼버|소총|라이플|총$|방패|배트$|쇠파이프|무기|\b(?:weapon|sword|rapier|katana|blade|dagger|knife|spear|bow|gun|pistol|revolver|rifle|shield|bat|pipe)s?\b/i;
+const splitTags = (t) => String(t || "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
 /* 출연진 외모가 비었을 때: 캐릭터 설정의 "이름(나이, 성별)"과 "외모:" 부분으로 대신(성별이 틀린 1girl 기본값 방지) */
 function personaWho(c) { const w = String(c?.persona || "").match(/\((\d{1,2})\s*,\s*([남여])\)/); return w ? `${w[1]}세 ${w[2] === "남" ? "남성" : "여성"}` : ""; }
 function personaLook(c) {
@@ -1393,18 +1410,79 @@ function castLook(cast, c) {
 }
 /* 직접 추가하는 이미지 칸(S.settings.customSits = [{n, name, prompt, rating}]): 모든 인물에 공통, 번호는 15부터.
    성인 수위 칸은 성인 확인(ageOK) 때만 보이고, 대화에서는 성인 경로(unfilteredRoute)일 때만 AI에게 알려 줌 */
-const CUSTOM_BASE = SIT.length, CUSTOM_MAX = 30;
+const CUSTOM_BASE = SIT.length, CUSTOM_MAX = 45;
 function sitDef(n) { return n >= CUSTOM_BASE ? (S.settings.customSits || []).find((d) => d.n === n) || null : null; }
 function sitName(n) { return SIT[n] || sitDef(n)?.name || "칸 " + n; }
 function customSits() { return (S.settings.customSits || []).filter((d) => d.rating === "safe" || ageOK()); }
 const slotNums = () => [...SIT.keys(), ...customSits().map((d) => d.n)]; // 슬롯 시트에 보이는 칸 번호
-function buildPonyPrompt(cast, i, c) { return [styled(""), castLook(cast, c) || "1girl", "solo", SIT_PONY_TAGS[i] || sitDef(i)?.prompt || SIT_PONY_TAGS[1], i === 0 ? "simple background" : "detailed background"].filter(Boolean).join(", "); }
+/* 이미지 칸 프롬프트를 묶음별로: 장면(표정·자세) → 인물(성별·외모) → 배경. 장면이 앞에 와야 표정이 반영됨(2026-11 비교 생성으로 확인).
+   그림체·품질·수위 태그는 runwareImage가 뒤에 붙임 */
+function slotParts(cast, i, c) {
+  const look = castLook(cast, c), boy = /남성|남자|\b(?:male|man|boy)\b/i.test(look) && !/여성|여자|\b(?:female|woman|girl)\b/i.test(look);
+  return [
+    { key: "scene", label: "장면·표정", tags: splitTags(SIT_PONY_TAGS[i] || sitDef(i)?.prompt || SIT_PONY_TAGS[1]) },
+    { key: "look", label: "인물", tags: [boy ? "1boy" : "1girl", "solo", ...splitTags(look).filter((t) => COMBAT_SITS.includes(i) || !WEAPON_RE.test(t))] },
+    { key: "bg", label: "배경", tags: [i === 0 ? "simple background" : "detailed background"] }
+  ];
+}
+function buildPonyPrompt(cast, i, c) { return slotParts(cast, i, c).flatMap((p) => p.tags).join(", "); }
 /* 칸을 지우면 모든 인물에 저장된 그 칸의 그림도 지움 */
 function dropSitImages(n) {
   const clean = (images) => Object.values(images || {}).forEach((m) => { if (m && m[n]) { IMG.drop(m[n]); delete m[n]; } });
   Object.values(S.imgpacks).forEach(clean); KV.set("imgpacks", S.imgpacks);
   S.mine.forEach((c) => clean(c.images)); KV.set("mine", S.mine);
   if (S.mine.some((c) => c.publish)) publishCommunity();
+}
+/* 추천 칸 꾸러미: 기본 15칸에 없는 자주 쓰는 상황을 골라 한 번에 추가(태그는 영문, 추가한 뒤 '고치기'로 바꿀 수 있음).
+   전체이용가·세미 수위만 — 노골적인 칸은 미리 채우지 않고 사용자가 직접 씀(CLAUDE.md 수위 원칙) */
+const SIT_PRESETS = [
+  { name: "일상·감정", items: [
+    ["만남", "waving, greeting, smile, looking at viewer"], ["식사", "eating, holding chopsticks, sitting at table, food, happy"],
+    ["대화", "talking, open mouth, hand gesture, looking at viewer"], ["정색", "serious, expressionless, cold stare, closed mouth"],
+    ["행복", "happy, big smile, closed eyes, sparkle"], ["경계", "wary, narrowed eyes, frown, defensive posture"],
+    ["고민", "thinking, hand on own chin, worried, looking to the side"], ["지침", "tired, exhausted, sweat, half-closed eyes, slouching"],
+    ["비웃음", "smug, smirk, half-closed eyes, looking down at viewer"], ["취함", "drunk, blush, dazed, half-closed eyes, holding glass"],
+    ["요리", "cooking, apron, kitchen, holding ladle"], ["게임", "playing video games, holding controller, sitting on floor, room"]] },
+  { name: "장소·데이트", items: [
+    ["카페", "cafe, sitting, holding cup, window, warm lighting"], ["해변", "beach, ocean, summer, sundress, wind, sunlight"],
+    ["놀이공원", "amusement park, ferris wheel, holding balloon, smile"], ["밤 산책", "night, street lights, walking, city lights, scarf"],
+    ["벚꽃", "cherry blossoms, falling petals, spring, park"], ["크리스마스", "christmas, santa hat, snow, christmas lights, holding gift"],
+    ["비 오는 날", "rain, holding umbrella, wet hair, puddle, city street"], ["영화관", "movie theater, sitting, popcorn, dark, screen light on face"]] },
+  { name: "로맨스", items: [
+    ["손잡기", "pov, holding hands, blush, smile, looking at viewer"], ["포옹", "pov, hug, arms around viewer, happy, closed eyes"],
+    ["고백", "confession, blush, nervous, holding letter, looking at viewer"], ["질투", "jealous, pout, crossed arms, looking away"],
+    ["무릎베개", "lap pillow, looking down at viewer, pov, gentle smile"], ["키스 직전", "pov, incoming kiss, closed eyes, blush, close-up"]] },
+  { name: "의상", items: [
+    ["잠옷", "pajamas, bedroom, messy hair, sleepy, morning"], ["수영복", "swimsuit, pool, summer, water, sunlight"],
+    ["메이드", "maid, maid headdress, apron, curtsey"], ["치어리더", "cheerleader, pom poms, energetic, smile"],
+    ["마녀", "witch hat, witch, cape, magic, halloween"]] },
+  { name: "세미 수위", rating: "questionable", items: [
+    ["유혹", "seductive smile, half-closed eyes, finger to lips, looking at viewer, bedroom"],
+    ["샤워 후", "after bath, wet hair, towel, steam, blush"], ["침대 위", "lying on bed, on side, looking at viewer, bedroom, soft lighting"]] }
+];
+function sitPresetSheet(after) {
+  const have = new Set((S.settings.customSits || []).map((d) => d.name));
+  const packs = SIT_PRESETS.filter((p) => !p.rating || ageOK());
+  const ov = document.createElement("div"); ov.className = "overlay gen-ov";
+  ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>추천 칸</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
+    <p class="sub" style="margin-top:0">고른 칸이 모든 인물에 생겨요. 추가한 뒤 '고치기'로 이름·프롬프트를 바꿀 수 있어요.</p>
+    ${packs.map((p, pi) => `<div class="tgroup"><span class="lbl">${esc(p.name)}${p.rating ? " 🔞" : ""}</span><div class="tchips">${p.items.map(([n], ii) => `<label class="tchip pick${have.has(n) ? " on" : ""}"><input type="checkbox" data-pp="${pi}" data-pi="${ii}" ${have.has(n) ? "checked disabled" : ""}> ${esc(n)}</label>`).join("")}</div></div>`).join("")}
+    <div class="cta-row"><button class="btn sm ghost" id="pall">모두 고르기</button><span class="spacer"></span><button class="btn ghost" data-x>취소</button><button class="btn pri" id="padd">추가</button></div></div>`;
+  document.body.append(ov);
+  const close = () => ov.remove();
+  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-x]")) close(); });
+  const boxes = $$("[data-pp]", ov).filter((b) => !b.disabled);
+  boxes.forEach((b) => b.onchange = () => b.parentElement.classList.toggle("on", b.checked));
+  $("#pall", ov).onclick = () => boxes.forEach((b) => { b.checked = true; b.onchange(); });
+  $("#padd", ov).onclick = () => {
+    const picked = boxes.filter((b) => b.checked).map((b) => { const p = packs[+b.dataset.pp], [name, prompt] = p.items[+b.dataset.pi]; return { name, prompt, rating: p.rating || "safe" }; });
+    if (!picked.length) { close(); return; }
+    const list = S.settings.customSits, space = CUSTOM_MAX - list.length;
+    if (space <= 0) { toast(`칸은 ${CUSTOM_MAX}개까지 추가할 수 있어요.`); return; }
+    for (const d of picked.slice(0, space)) { let n = CUSTOM_BASE; while (list.some((x) => x.n === n)) n++; list.push({ n, ...d }); }
+    saveSettings(); close(); after && after();
+    toast(picked.length > space ? `${space}칸만 추가했어요(최대 ${CUSTOM_MAX}칸)` : `${picked.length}칸을 추가했어요`);
+  };
 }
 /* 직접 추가하는 칸 만들기·고치기. 슬롯 시트 위에 겹쳐 뜸 */
 function sitEditor(def, after) {
@@ -1455,7 +1533,7 @@ async function ponyTags(text, adult = false) {
 let TAGS = {};
 async function koTags(t, adult = false) {
   adult = adult && ageOK() && hasOpenRouterKey();
-  const key = (adult ? "A:" : "") + t;
+  const key = "2|" + (adult ? "A:" : "") + t; // 2|: 표정 덧붙이지 않게 지시를 바꾼 뒤의 번역(예전 캐시는 안 씀)
   if (TAGS[key]) return TAGS[key];
   const strip = () => t.replace(/[^\s,]*[가-힣][^\s,]*/g, " ").split(",").map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean).join(", ");
   try { await waitEngine(); } catch {}
@@ -1466,6 +1544,7 @@ async function koTags(t, adult = false) {
 - 원문 순서를 따른다.
 - 인물은 모두 성인이다(인물이 있으면 adult 를 넣는다). 나이 숫자는 쓰지 말고, young·teen·petite처럼 어려 보이게 하는 낱말도 쓰지 않는다. ${adult ? "노출·성적 표현은 원문에 있는 만큼만 태그로 옮기고, 미성년으로 보이게 하는 태그는 넣지 않는다." : "노출·성적 표현 태그는 넣지 않는다."}
 - 고유명사(작품·인물·장소 이름)는 빼고 외모·의상·표정·자세·장소·조명·분위기만 남긴다.
+- 원문에 없는 표정·감정·자세 태그는 덧붙이지 않는다(예: '날카로운 눈매'는 sharp eyes일 뿐 serious expression이 아니다). 표정은 다른 칸에서 정한다.
 
 ${t}` }];
     let out = S.engine !== "none" || adult ? await llm(msgs, { tier: "quick", maxTokens: 500, adult }).catch(() => null) : null;
@@ -1493,11 +1572,13 @@ async function runwareImage(prompt, { aspect = "4:5", rating = imgRating(), sign
   rating = imgRating(rating);
   const adult = rating !== "safe";
   if (adult && minorHint(prompt)) throw { code: "minor_block" };
-  const tags = await ponyTags(prompt, adult);
-  if (adult && minorHint(tags)) throw { code: "minor_block" };
+  const tags = await ponyTags(prompt, adult), style = await ponyTags(imgStyleText(), adult);
+  if (adult && minorHint(tags + ", " + style)) throw { code: "minor_block" };
   const [width, height] = RW_SIZES[aspect] || RW_SIZES["4:5"], R = RATINGS[rating], M = imgModelInfo(imgModelId()), A = ARCH[M.arch] || ARCH.pony;
+  // 내용(장면·인물) 다음에 그림체 — 그림체가 앞이면 표정·자세가 묻힘. "(태그:1.3)" 강조가 있으면 Runware 가중치 문법(sdEmbeds)을 켬
   const task = { taskType: "imageInference", taskUUID: uuid4(),
-    positivePrompt: [A.pos, M.arch === "illustrious" ? R.ill : R.pos, M.pos, tags].filter(Boolean).join(", ").slice(0, 2900),
+    positivePrompt: [A.pos, M.arch === "illustrious" ? R.ill : R.pos, M.pos, tags, style].filter(Boolean).join(", ").slice(0, 2900),
+    ...(/\([^()]+:\d(?:\.\d+)?\)/.test(tags) ? { promptWeighting: "sdEmbeds" } : {}),
     negativePrompt: [A.neg, M.neg, IMG_NEG, NEG_MINOR, R.neg].filter(Boolean).join(", "),
     model: M.id, width, height, numberResults: 1, steps: 28, CFGScale: M.cfg || A.cfg, scheduler: "Euler a",
     outputFormat: "WEBP", outputType: "dataURI", ...(adult ? {} : { checkNSFW: true }) };
@@ -1576,26 +1657,54 @@ function genErr(e) {
     cancelled: "생성을 취소했어요."
   }[e?.code] || "이미지를 만들지 못했어요." + (e?.msg ? ` (${String(e.msg).slice(0, 120)})` : "");
 }
-/* 다른 시트 위에 겹쳐 뜨는 생성 창. onUse(blob)가 끝나면 닫혀요 */
-function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspect = "4:5", rating, onUse }) {
+/* 다른 시트 위에 겹쳐 뜨는 생성 창. 프롬프트는 묶음별 태그 칩(누르면 ★강조, ×로 빼기, 칸에 한국어·영어로 더하기).
+   그림체·품질·수위·금지 태그는 숨겨 두고 runwareImage가 붙임. parts가 없으면 prompt 문자열을 한 묶음으로. onUse(blob)가 끝나면 닫혀요 */
+function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", parts, aspect = "4:5", rating, onUse }) {
   const model = imgModelInfo(imgModelId()).name;
+  const groups = (parts || [{ key: "main", label: "프롬프트", tags: splitTags(prompt) }]).map((g) => ({ ...g, tags: g.tags.map((t) => ({ t, strong: false })) }));
+  groups.splice(1, 0, { key: "extra", label: "추가", tags: [] }); // 직접 더한 태그는 장면 바로 다음(앞쪽일수록 잘 반영됨)
   const ov = document.createElement("div"); ov.className = "overlay gen-ov";
   ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
-    <div class="field" style="margin-top:0"><label for="gp">프롬프트 <span class="note">영문 태그 또는 한글 설명</span></label><textarea id="gp" maxlength="2000" style="min-height:110px" placeholder="예: 1girl, solo, long hair, smile 또는 '긴 흑발, 미소'">${esc(prompt)}</textarea></div>
-    <p class="note" style="margin:6px 0 0">${S.engine === "none" && !hasOpenRouterKey() ? "AI 연결이 없어 한글은 빼고 보내요." : "한글은 영문 태그로 바꿔 보내요."} 품질·금지 태그는 자동으로 붙어요.</p>
+    <div id="gtags"></div>
+    <p class="note" style="margin:8px 0 0">태그를 누르면 ★강조, ×는 빼기. ${S.engine === "none" && !hasOpenRouterKey() ? "AI 연결이 없어 한글은 빼고 보내요." : "한국어로 써도 영문 태그로 바꿔 보내요."}</p>
+    <details class="gen-auto"><summary>자동으로 붙는 태그</summary><p class="note">그림체(${esc(styleLabel())}) · 품질 · 수위 · 금지(저품질·글자·미성년) 태그 · 모델 ${esc(model)}</p></details>
     ${ageOK() ? `<div class="field"><label for="grt">수위</label><select id="grt">${Object.entries(RATINGS).map(([k, v]) => `<option value="${k}" ${k === imgRating(rating) ? "selected" : ""}>${esc(v.name)} (${k[0].toUpperCase() + k.slice(1)})</option>`).join("")}</select></div>` : ""}
-    <div class="gen-pv" id="gpv"><span class="note">${hasRunwareKey() ? `비율 ${esc(aspect)} · ${esc(model)} · 그림체 ${esc(styleLabel())}` : "설정에서 Runware API 키를 먼저 넣어 주세요."}</span></div>
+    <div class="gen-pv" id="gpv"><span class="note">${hasRunwareKey() ? `비율 ${esc(aspect)} · 그림체 ${esc(styleLabel())}` : "설정에서 Runware API 키를 먼저 넣어 주세요."}</span></div>
     <div class="cta-row"><button class="btn ghost" data-x>닫기</button><span class="spacer"></span><button class="btn" id="gmk">생성</button><button class="btn pri" id="guse" disabled>이 이미지 쓰기</button></div></div>`;
   document.body.append(ov);
+  const paintTags = (focusGroup) => {
+    $("#gtags", ov).innerHTML = groups.map((g, gi) => `<div class="tgroup"><span class="lbl">${esc(g.label)}</span><div class="tchips">${g.tags.map((x, ti) => `<span class="tchip${x.strong ? " on" : ""}"><button type="button" data-tg="${gi}" data-ti="${ti}" title="눌러서 강조">${x.strong ? "★ " : ""}${esc(x.t)}</button><button type="button" class="tx" data-rg="${gi}" data-ri="${ti}" aria-label="${esc(x.t)} 빼기">×</button></span>`).join("")}<input class="tadd" data-ag="${gi}" maxlength="80" placeholder="+ 태그" aria-label="${esc(g.label)}에 태그 더하기"></div></div>`).join("");
+    $$("[data-tg]", ov).forEach((b) => b.onclick = () => { const x = groups[+b.dataset.tg].tags[+b.dataset.ti]; x.strong = !x.strong; paintTags(); });
+    $$("[data-rg]", ov).forEach((b) => b.onclick = () => { groups[+b.dataset.rg].tags.splice(+b.dataset.ri, 1); paintTags(); });
+    $$("[data-ag]", ov).forEach((inp) => {
+      const add = (refocus) => { const v = splitTags(inp.value); if (!v.length) return; groups[+inp.dataset.ag].tags.push(...v.map((t) => ({ t, strong: false }))); inp.value = ""; paintTags(refocus ? inp.dataset.ag : null); };
+      inp.onkeydown = (e) => { if ((e.key === "Enter" || e.key === ",") && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); add(true); } };
+      inp.onchange = () => add(false);
+    });
+    if (focusGroup != null) $(`[data-ag="${focusGroup}"]`, ov)?.focus();
+  };
+  paintTags();
+  // 묶음 순서대로 영문 태그로: 강조(★) 태그는 하나씩 번역해 "(태그:1.3)"로, 나머지는 묶음째 번역
+  const buildPrompt = async (adult) => {
+    const out = [];
+    for (const g of groups) {
+      for (const x of g.tags.filter((y) => y.strong)) out.push(...splitTags(await ponyTags(x.t, adult)).map((t) => /[():]/.test(t) ? t : `(${t}:1.3)`));
+      const plain = g.tags.filter((y) => !y.strong).map((y) => y.t);
+      if (plain.length) out.push(await ponyTags(plain.join(", "), adult));
+    }
+    return out.filter(Boolean).join(", ");
+  };
   let blob = null, url = "", ctl = null;
   const close = () => { ctl && ctl.abort(); url && URL.revokeObjectURL(url); ov.remove(); };
   ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest("[data-x]")) close(); });
   const pv = $("#gpv", ov), mk = $("#gmk", ov), use = $("#guse", ov);
   mk.onclick = async () => {
-    const p = $("#gp", ov).value.trim(); if (!p) { $("#gp", ov).focus(); return; }
+    if (!groups.some((g) => g.tags.length)) { toast("태그를 하나 이상 넣어 주세요."); return; }
+    const rt = $("#grt", ov)?.value || "safe", adult = imgRating(rt) !== "safe";
     mk.disabled = use.disabled = true; pv.innerHTML = `<span class="note">만드는 중… 10~30초쯤 걸려요</span>`; ctl = new AbortController();
     try {
-      blob = await runwareImage(p, { aspect, rating: $("#grt", ov)?.value || "safe", signal: ctl.signal });
+      if (adult && minorHint(groups.flatMap((g) => g.tags.map((x) => x.t)).join(", "))) throw { code: "minor_block" };
+      blob = await runwareImage(await buildPrompt(adult), { aspect, rating: rt, signal: ctl.signal });
       url && URL.revokeObjectURL(url); url = URL.createObjectURL(blob);
       pv.innerHTML = `<img src="${url}" alt="생성된 이미지">`; use.disabled = false; mk.textContent = "다시 생성";
     } catch (e) { if (!ov.isConnected) return; blob = null; pv.innerHTML = `<span class="note">${esc(genErr(e))}</span>`; }
@@ -1605,7 +1714,6 @@ function genImageSheet({ title = "AI로 이미지 만들기", prompt = "", aspec
     if (!blob) return; use.disabled = true; toast("저장하는 중…");
     try { await onUse(blob); close(); } catch { use.disabled = false; toast("이미지를 저장하지 못했어요."); }
   };
-  if (hasRunwareKey()) $("#gp", ov).focus();
   return ov;
 }
 
@@ -2981,7 +3089,7 @@ function openImageSlots(c, code) {
     const ov = sheet(`<div class="sheet-head"><h2>이미지 슬롯</h2><button class="icon-btn" data-x aria-label="닫기">${ICON.close}</button></div>
       <p class="sub">대화 속 장면마다 이 칸의 이미지가 보여요. 빈 칸은 프로필 이미지로 대신해요.${mine ? "" : " 이미지는 내 계정에만 저장돼요."}</p>
       <div class="casttabs chips">${c.cast.map((x) => `<button class="chip ${x.code === cur ? "on" : ""}" data-cc="${esc(x.code)}">${esc(x.name)} <small>${esc(x.code)}</small></button>`).join("")}</div>
-      <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><button class="btn sm" id="addSit">+ 칸 추가</button><span class="note">파일 이름을 2.png처럼 칸 번호로 지으면 그 칸에 들어가요.</span></div>
+      <div class="cta-row" style="margin:0 0 10px"><button class="btn sm pri" id="bulk">여러 장 한 번에 올리기</button><button class="btn sm" id="aiAll">${bulk ? "AI 채우기 멈추기" : "빈 칸 AI로 채우기"}</button><button class="btn sm" id="prompt">이미지 프롬프트 복사</button><button class="btn sm" id="addSit">+ 칸 추가</button><button class="btn sm" id="recSit">추천 칸</button><span class="note">파일 이름을 2.png처럼 칸 번호로 지으면 그 칸에 들어가요.</span></div>
       <div class="slot-grid">${slotNums().map((i) => { const ref = validRef(slots[i]) ? slots[i] : null, d = sitDef(i); return `<div class="slot"><div class="pic${bulk && bulk.code === cur && bulk.at === i ? " busy" : ""}">${ref ? IMG.tag(ref) : artHTML(c, cast, i)}</div><span class="lb">${i} ${esc(sitName(i))}${d && d.rating !== "safe" ? " 🔞" : ""}${i === 0 ? " <small>첫 등장</small>" : ""}</span><div class="bs"><button data-up="${i}">${ref ? "바꾸기" : "올리기"}</button><button data-ai="${i}">AI</button>${ref ? `<button data-rm="${i}">삭제</button>` : ""}${d ? `<button data-ed="${i}">고치기</button>` : ""}</div></div>`; }).join("")}</div>
       <input type="file" id="one" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="many" accept="image/png,image/jpeg,image/webp" multiple hidden>
       <p class="note" style="margin-top:12px">AI 버튼은 설정의 Runware 키로 그려요. 같은 인물로 그리려면 작품의 '이미지 출연진' 외모를 자세히 적어 주세요.</p>`, "wide");
@@ -2992,11 +3100,12 @@ function openImageSlots(c, code) {
     $$("[data-rm]", ov).forEach((b) => b.onclick = () => { const m = store()[cur] || {}; IMG.drop(m[b.dataset.rm]); delete m[b.dataset.rm]; store()[cur] = m; persist(); paint(); });
     $$("[data-ai]", ov).forEach((b) => b.onclick = () => {
       const i = +b.dataset.ai, code = cur;
-      genImageSheet({ title: `${cast.name} · ${i} ${sitName(i)}`, prompt: prompt(cast, i), aspect: "4:5", rating: sitDef(i)?.rating,
+      genImageSheet({ title: `${cast.name} · ${i} ${sitName(i)}`, parts: slotParts(cast, i, c), aspect: "4:5", rating: sitDef(i)?.rating,
         onUse: async (blob) => { await put(blob, i, code); persist(); if (live?.isConnected) paint(); toast("이미지를 등록했어요"); } });
     });
     $$("[data-ed]", ov).forEach((b) => b.onclick = () => sitEditor(sitDef(+b.dataset.ed), paint));
     $("#addSit", ov).onclick = () => sitEditor(null, paint);
+    $("#recSit", ov).onclick = () => sitPresetSheet(paint);
     $("#aiAll", ov).onclick = async () => {
       if (bulk) { bulk.stop = true; return; }
       if (!hasRunwareKey()) { toast(genErr({ code: "no_key" })); return; }
@@ -3032,7 +3141,7 @@ function openImageSlots(c, code) {
 /* ---------------------------------------------------------------- 세계관 일러스트: 대표 일러스트(표지) + 키워드북 항목별 그림.
    내 작품은 작품(img·loreImages)에, 그 밖의 작품은 내 계정(coverpacks·lorepacks)에 저장 */
 function loreImg(c, key) { const live = getChar(c.id) || c; return (S.lorepacks[c.id] || {})[key] || (live.loreImages || {})[key] || ""; }
-function lorePrompt(c, e) { return [styled(""), "scenery, wide shot, detailed background, atmospheric lighting, no text", e.text].filter(Boolean).join(", "); }
+function lorePrompt(c, e) { return ["scenery, wide shot, detailed background, atmospheric lighting, no text", e.text].filter(Boolean).join(", "); }
 function pubLore(m) { const out = {}; for (const [k, ref] of Object.entries(m || {}).slice(0, 40)) if (typeof ref === "string" && ref.startsWith("/_blob/") && validRef(ref)) out[String(k).slice(0, 20)] = ref; return out; }
 function worldArtHTML(c) {
   const lore = (getChar(c.id) || c).lore || [];
@@ -3583,7 +3692,7 @@ function viewMe() {
   };
   $("#gtest").onclick = () => {
     S.settings.runwareKey = $("#rkey").value.trim(); saveStyle(); saveSettings();
-    genImageSheet({ title: "Runware 연결 테스트", aspect: "1:1", prompt: [styled(""), "1girl, solo, adult, sitting by the window, holding coffee cup, cat, warm afternoon sunlight, cozy room"].filter(Boolean).join(", "),
+    genImageSheet({ title: "Runware 연결 테스트", aspect: "1:1", prompt: "1girl, solo, adult, sitting by the window, holding coffee cup, cat, warm afternoon sunlight, cozy room",
       onUse: async () => toast("테스트 이미지는 저장하지 않아요. Runware 연결이 잘 돼요!") });
   };
   $("#reset").onclick = () => confirmSheet("모든 데이터를 지울까요?", "대화방, 만든 캐릭터, 하트, 페르소나, 이미지 연결이 모두 지워져요. 되돌릴 수 없어요.", "전부 삭제", () => {
@@ -3607,7 +3716,7 @@ function personaSheet(p, after) {
   $("#avBtn", ov).onclick = () => $("#av", ov).click();
   $("#av", ov).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { img = await IMG.put(f); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } catch { toast("이미지를 읽지 못했어요."); } };
   $("#avAi", ov).onclick = () => genImageSheet({ title: "AI로 페르소나 이미지 만들기", aspect: "1:1",
-    prompt: [styled(""), "solo, adult, portrait, upper body, looking at viewer", $("#pd", ov).value.trim() || $("#pn", ov).value.trim(), "simple background"].filter(Boolean).join(", "),
+    prompt: ["solo, adult, portrait, upper body, looking at viewer", $("#pd", ov).value.trim() || $("#pn", ov).value.trim(), "simple background"].filter(Boolean).join(", "),
     onUse: async (blob) => { img = await IMG.put(blob); $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img }); IMG.hydrate(ov); $("#avDel", ov).hidden = false; } });
   $("#avDel", ov).onclick = () => { img = ""; $("#avBox", ov).innerHTML = pavHTML({ name: $("#pn", ov).value || "?", img: "" }); $("#avDel", ov).hidden = true; };
   $("#psave", ov).onclick = () => {
